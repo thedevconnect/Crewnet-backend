@@ -3,48 +3,48 @@ import ApiError from '../utils/ApiError.js';
 import jwt from 'jsonwebtoken';
 
 class AuthService {
-  // Register - Naya user banane ke liye
+  // Register - Create new user
   async register(data) {
     const { name, email, password } = data;
 
     // Basic validation - simple check
     if (!name || !email || !password) {
-      throw new ApiError(400, 'Name, email aur password required hai');
+      throw new ApiError(400, 'Name, email and password are required');
     }
 
-    // Email already hai ya nahi check karo
+    // Check if email already exists
     const existingUser = await UserModel.findByEmail(email);
     if (existingUser) {
-      throw new ApiError(400, 'Ye email pehle se registered hai');
+      throw new ApiError(400, 'This email is already registered');
     }
 
-    // Password directly save karo (plain text)
+    // Save password directly (plain text)
     const user = await UserModel.create({ name, email, password });
 
-    // Password ko response se hata do
+    // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
 
-  // Login - User ko authenticate karne ke liye
+  // Login - Authenticate user
   async login(email, password) {
     // Basic validation
     if (!email || !password) {
-      throw new ApiError(400, 'Email aur password required hai');
+      throw new ApiError(400, 'Email and password are required');
     }
 
-    // Database se user find karo
+    // Find user from database
     const user = await UserModel.findByEmail(email);
     if (!user) {
-      throw new ApiError(401, 'Invalid email ya password');
+      throw new ApiError(401, 'Invalid email or password');
     }
 
-    // Password verify karo (direct comparison - plain text)
+    // Verify password (direct comparison - plain text)
     if (password !== user.password) {
-      throw new ApiError(401, 'Invalid email ya password');
+      throw new ApiError(401, 'Invalid email or password');
     }
 
-    // JWT token generate karo
+    // Generate JWT token
     if (!process.env.JWT_SECRET) {
       throw new ApiError(500, 'Server configuration error');
     }
@@ -55,13 +55,13 @@ class AuthService {
       { expiresIn: '7d' }
     );
 
-    // Password ko response se hata do
+    // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
     return { user: userWithoutPassword, token };
   }
 
-  // Profile - User ki details get karne ke liye
+  // Profile - Get user details
   async getProfile(userId) {
     const user = await UserModel.findById(userId);
     if (!user) {

@@ -3,7 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 
-// Debug endpoint - Check user by email (testing ke liye)
+// Debug endpoint - Check user by email (for testing)
 router.get('/check-user/:email', async (req, res) => {
   try {
     const { email } = req.params;
@@ -36,25 +36,25 @@ router.get('/check-user/:email', async (req, res) => {
 // ============================================
 // LOGIN API - POST /login
 // ============================================
-// Angular se ye endpoint call hoga
+// This endpoint will be called from Angular
 // Request body: { email: "user@example.com", password: "password123" }
 // Response: { success: true, token: "jwt_token", user: {...} }
 router.post('/login', async (req, res) => {
   try {
-    // Step 1: Request body se email aur password le rahe hain
+    // Step 1: Get email and password from request body
     const { email, password } = req.body;
 
     console.log('Login attempt:', { email, passwordLength: password?.length });
 
-    // Step 2: Validation - check karo ki email aur password mila hai ya nahi
+    // Step 2: Validation - check if email and password are provided
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email aur password dono required hain'
+        message: 'Email and password are required'
       });
     }
 
-    // Step 3: Database se user find karo email se
+    // Step 3: Find user from database by email
     const promisePool = db.promise;
     const [users] = await promisePool.execute(
       'SELECT * FROM users WHERE email = ?',
@@ -63,18 +63,18 @@ router.post('/login', async (req, res) => {
 
     console.log('User found:', users.length > 0 ? 'Yes' : 'No');
 
-    // Step 4: Check karo ki user exist karta hai ya nahi
+    // Step 4: Check if user exists
     if (users.length === 0) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email ya password'
+        message: 'Invalid email or password'
       });
     }
 
     const user = users[0];
     console.log('User from DB:', { id: user.id, email: user.email, dbPasswordLength: user.password?.length });
 
-    // Step 5: Password verify karo (plain text comparison)
+    // Step 5: Verify password (plain text comparison)
     // Note: Plain text password comparison (NOT RECOMMENDED for production)
     // Direct comparison without trim (as stored in DB)
     console.log('Password comparison:', {
@@ -89,12 +89,12 @@ router.post('/login', async (req, res) => {
       console.log('Password mismatch!');
       return res.status(401).json({
         success: false,
-        message: 'Invalid email ya password'
+        message: 'Invalid email or password'
       });
     }
 
-    // Step 6: Password sahi hai, ab JWT token generate karo
-    // Token me user ki basic info store karte hain (password nahi!)
+    // Step 6: Password is correct, generate JWT token
+    // Store user's basic info in token (not password!)
     
     // Check if JWT_SECRET exists
     if (!process.env.JWT_SECRET) {
@@ -112,13 +112,13 @@ router.post('/login', async (req, res) => {
         name: user.name
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' } // Token 7 din tak valid rahega
+      { expiresIn: '7d' } // Token valid for 7 days
     );
 
     console.log('Login successful, token generated for user:', user.email);
 
-    // Step 7: Success response bhejo
-    // Password ko response me include mat karo (security ke liye)
+    // Step 7: Send success response
+    // Do not include password in response (for security)
     res.json({
       success: true,
       message: 'Login successful',
@@ -132,7 +132,7 @@ router.post('/login', async (req, res) => {
     });
 
   } catch (error) {
-    // Step 8: Agar koi error aaye to handle karo
+    // Step 8: Handle any errors
     console.error('Login error:', error);
     console.error('Error details:', {
       message: error.message,

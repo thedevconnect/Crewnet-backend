@@ -7,7 +7,7 @@ const pool = mysql.createPool({
   user: process.env.DB_USER || 'sam',
   password: process.env.DB_PASS || 'Ssam@123',
   database: process.env.DB_NAME || 'crewnet',
-  port: process.env.DB_PORT || 8011,   // ⭐ Railway ke liye important
+  port: process.env.DB_PORT || 8011,   // Important for Railway deployment
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0

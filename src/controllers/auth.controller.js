@@ -2,7 +2,7 @@ import authService from '../services/auth.service.js';
 import ApiResponse from '../utils/ApiResponse.js';
 
 class AuthController {
-  // Register - Request receive karke service ko call karo
+  // Register - Receive request and call service
   async register(req, res, next) {
     try {
       console.log('🔐 Register endpoint hit');
@@ -11,11 +11,11 @@ class AuthController {
       res.status(201).json(response);
     } catch (error) {
       console.error('❌ Register error:', error);
-      next(error); // Error handler ko pass karo
+      next(error); // Pass to error handler
     }
   }
 
-  // Login - Email aur password se login karo
+  // Login - Login with email and password
   async login(req, res, next) {
     try {
       console.log('🔐 Login endpoint hit');
@@ -29,7 +29,7 @@ class AuthController {
     }
   }
 
-  // Profile - User ki details get karo
+  // Profile - Get user details
   async getProfile(req, res, next) {
     try {
       const userId = req.params.id;

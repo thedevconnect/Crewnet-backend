@@ -36,7 +36,7 @@ router.post('/register', async (req, res) => {
     if (name.trim() === '' || email.trim() === '' || password.trim() === '') {
       return res.status(400).json({
         success: false,
-        message: 'Name, email aur password empty nahi ho sakte'
+        message: 'Name, email and password cannot be empty'
       });
     }
 
@@ -49,7 +49,7 @@ router.post('/register', async (req, res) => {
     if (existingUsers.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Ye email already registered hai'
+        message: 'This email is already registered'
       });
     }
 
@@ -95,7 +95,7 @@ router.post('/login', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email aur password dono required hain'
+        message: 'Email and password are required'
       });
     }
 
@@ -110,7 +110,7 @@ router.post('/login', async (req, res) => {
     if (users.length === 0) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email ya password'
+        message: 'Invalid email or password'
       });
     }
 
@@ -128,7 +128,7 @@ router.post('/login', async (req, res) => {
       console.log('❌ Password mismatch!');
       return res.status(401).json({
         success: false,
-        message: 'Invalid email ya password'
+        message: 'Invalid email or password'
       });
     }
 
@@ -202,6 +202,111 @@ router.get('/check-user/:email', async (req, res) => {
     });
   }
 });
+
+// ============================================
+// GET ALL USERS - For Dashboard
+// ============================================
+router.get('/users', async (req, res) => {
+  console.log('🔵 GET /users route hit');
+  try {
+    const { page = 1, limit = 100, search = '' } = req.query;
+    const offset = (page - 1) * limit;
+
+    let sql = 'SELECT id, name, email, created_at, updated_at FROM users WHERE 1=1';
+    const params = [];
+
+    // Search by name or email
+    if (search) {
+      sql += ' AND (name LIKE ? OR email LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm);
+    }
+
+    // Get total count
+    let countSql = 'SELECT COUNT(*) as total FROM users WHERE 1=1';
+    const countParams = [];
+    if (search) {
+      countSql += ' AND (name LIKE ? OR email LIKE ?)';
+      countParams.push(`%${search}%`, `%${search}%`);
+    }
+    const [countResult] = await promisePool.execute(countSql, countParams);
+    const total = countResult[0].total;
+
+    // Get users with pagination
+    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), offset);
+
+    const [users] = await promisePool.execute(sql, params);
+
+    res.json({
+      success: true,
+      message: 'Users fetched successfully',
+      data: {
+        users: users,
+        pagination: {
+          total: total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: Math.ceil(total / limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error. Please try again later.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// ============================================
+// DASHBOARD - Get all records (Users + Employees)
+// ============================================
+router.get('/dashboard', async (req, res) => {
+  console.log('🔵 GET /dashboard route hit');
+  try {
+    // Get all users
+    const [users] = await promisePool.execute(
+      'SELECT id, name, email, created_at FROM users ORDER BY created_at DESC'
+    );
+
+    // Get all employees
+    const [employees] = await promisePool.execute(
+      'SELECT id, name, email, phone, department, status, joiningDate, createdAt FROM employees ORDER BY createdAt DESC'
+    );
+
+    // Get counts
+    const [userCount] = await promisePool.execute('SELECT COUNT(*) as total FROM users');
+    const [employeeCount] = await promisePool.execute('SELECT COUNT(*) as total FROM employees');
+
+    res.json({
+      success: true,
+      message: 'Dashboard data fetched successfully',
+      data: {
+        users: users,
+        employees: employees,
+        counts: {
+          totalUsers: userCount[0].total,
+          totalEmployees: employeeCount[0].total
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error. Please try again later.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Log route registration
+console.log('✅ Auth routes loaded: /register, /login, /users, /dashboard, /check-user/:email');
 
 export default router;
 

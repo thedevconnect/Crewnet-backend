@@ -38,11 +38,11 @@ router.post('/register', async (req, res) => {
     if (name.trim() === '' || email.trim() === '' || password.trim() === '') {
       return res.status(400).json({
         success: false,
-        message: 'Name, email aur password empty nahi ho sakte'
+        message: 'Name, email and password cannot be empty'
       });
     }
 
-    // Step 3: Check karo ki email already exist karta hai ya nahi
+    // Step 3: Check if email already exists
     const promisePool = db.promise;
     const [existingUsers] = await promisePool.execute(
       'SELECT * FROM users WHERE email = ?',
@@ -52,13 +52,13 @@ router.post('/register', async (req, res) => {
     if (existingUsers.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Ye email already registered hai'
+        message: 'This email is already registered'
       });
     }
 
-    // Step 4: Password ko directly store karo (plain text - NOT RECOMMENDED for production)
-    // Note: Production me password ko hash karna chahiye security ke liye
-    // Step 5: Database me user insert karo
+    // Step 4: Store password directly (plain text - NOT RECOMMENDED for production)
+    // Note: In production, password should be hashed for security
+    // Step 5: Insert user into database
     console.log('Attempting to insert user:', { name, email });
     const [result] = await promisePool.execute(
       'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
@@ -76,7 +76,7 @@ router.post('/register', async (req, res) => {
     
     console.log('Verified inserted user:', insertedUser);
 
-    // Step 6: Success response bhejo
+    // Step 6: Send success response
     res.status(201).json({
       success: true,
       message: 'User successfully created',
