@@ -5,10 +5,12 @@ class AuthController {
   // Register - Request receive karke service ko call karo
   async register(req, res, next) {
     try {
+      console.log('🔐 Register endpoint hit');
       const user = await authService.register(req.body);
       const response = ApiResponse.created('User registered successfully', user);
       res.status(201).json(response);
     } catch (error) {
+      console.error('❌ Register error:', error);
       next(error); // Error handler ko pass karo
     }
   }
@@ -16,11 +18,13 @@ class AuthController {
   // Login - Email aur password se login karo
   async login(req, res, next) {
     try {
+      console.log('🔐 Login endpoint hit');
       const { email, password } = req.body;
       const result = await authService.login(email, password);
       const response = ApiResponse.success('Login successful', result);
       res.status(200).json(response);
     } catch (error) {
+      console.error('❌ Login error:', error);
       next(error);
     }
   }

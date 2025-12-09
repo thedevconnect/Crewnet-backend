@@ -3,11 +3,11 @@ const mysql = require('mysql2');
 
 // Create connection pool
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || '',
+  host: process.env.DB_HOST || '103.30.72.61',
+  user: process.env.DB_USER || 'sam',
+  password: process.env.DB_PASS || 'Ssam@123',
   database: process.env.DB_NAME || 'crewnet',
-  port: process.env.DB_PORT || 3306,   // ⭐ Railway ke liye important
+  port: process.env.DB_PORT || 8011,   // ⭐ Railway ke liye important
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0

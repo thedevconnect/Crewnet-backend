@@ -5,12 +5,12 @@ const db = require('../db');
 // ============================================
 // REGISTER API - POST /register
 // ============================================
-// Naya user create karne ke liye (testing ke liye useful hai)
+// Create new user
 // Request body: { name: "John Doe", email: "john@example.com", password: "password123" }
 // Response: { success: true, message: "User created successfully", user: {...} }
 router.post('/register', async (req, res) => {
   try {
-    // Step 1: Request body se data le rahe hain
+    // Extract data from request body
     console.log('Register request received:', {
       body: req.body,
       hasName: !!req.body?.name,
