@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import employeeRoutes from './routes/employee.routes.js';
+import authRoutes from './routes/auth.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
 import notFoundHandler from './middlewares/notFoundHandler.js';
 
@@ -52,6 +53,7 @@ app.get('/health', async (req, res) => {
 
 // API routes
 app.use('/api/employees', employeeRoutes);
+app.use('/api/auth', authRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

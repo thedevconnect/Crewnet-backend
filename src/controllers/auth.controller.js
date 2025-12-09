@@ -1,0 +1,42 @@
+import authService from '../services/auth.service.js';
+import ApiResponse from '../utils/ApiResponse.js';
+
+class AuthController {
+  // Register - Request receive karke service ko call karo
+  async register(req, res, next) {
+    try {
+      const user = await authService.register(req.body);
+      const response = ApiResponse.created('User registered successfully', user);
+      res.status(201).json(response);
+    } catch (error) {
+      next(error); // Error handler ko pass karo
+    }
+  }
+
+  // Login - Email aur password se login karo
+  async login(req, res, next) {
+    try {
+      const { email, password } = req.body;
+      const result = await authService.login(email, password);
+      const response = ApiResponse.success('Login successful', result);
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Profile - User ki details get karo
+  async getProfile(req, res, next) {
+    try {
+      const userId = req.params.id;
+      const user = await authService.getProfile(userId);
+      const response = ApiResponse.success('Profile fetched successfully', user);
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export default new AuthController();
+
