@@ -4,7 +4,10 @@ class EmployeeModel {
   // Get all employees with pagination, search, and sorting
   static async findAll(query) {
     const { page = 1, limit = 10, search = '', sortBy = 'createdAt', sortOrder = 'DESC' } = query;
-    const offset = (page - 1) * limit;
+    // Ensure numeric values for pagination to avoid placeholder issues with LIMIT/OFFSET
+    const limitNum = Math.max(1, parseInt(limit) || 10);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const offset = (pageNum - 1) * limitNum;
 
     let sql = 'SELECT * FROM employees WHERE 1=1';
     const params = [];
@@ -23,8 +26,9 @@ class EmployeeModel {
     sql += ` ORDER BY ${sortField} ${order}`;
 
     // Pagination
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), offset);
+    // Note: Some MySQL versions are picky about placeholders in LIMIT/OFFSET
+    // So we inline the safe, parsed numbers.
+    sql += ` LIMIT ${limitNum} OFFSET ${offset}`;
 
     const [rows] = await db.execute(sql, params);
 
@@ -42,9 +46,9 @@ class EmployeeModel {
       employees: rows,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit)
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
       }
     };
   }
