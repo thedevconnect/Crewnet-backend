@@ -5,6 +5,8 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import employeeRoutes from './routes/employee.routes.js';
 import authRoutes from './routes/auth.routes.js';
+import attendanceRoutes from './routes/attendance.routes.js';
+import { verifyToken } from './middlewares/auth.middleware.js';
 import errorHandler from './middlewares/errorHandler.js';
 import notFoundHandler from './middlewares/notFoundHandler.js';
 
@@ -85,14 +87,19 @@ app.get('/api/diag/tables', async (req, res) => {
 // API routes - Register BEFORE 404 handler
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/attendance', verifyToken, attendanceRoutes);
 
 // Debug route registration
 console.log('✅ Auth routes registered at /api/auth');
 console.log('✅ Employee routes registered at /api/employees');
+console.log('✅ Attendance routes registered at /api/attendance (protected)');
 console.log('📋 Available routes:');
 console.log('   POST /api/auth/register');
 console.log('   POST /api/auth/login');
 console.log('   GET  /api/auth/profile/:id');
+console.log('   POST /api/attendance/swipe-in (requires auth)');
+console.log('   POST /api/attendance/swipe-out (requires auth)');
+console.log('   GET  /api/attendance/today-status (requires auth)');
 
 // 404 handler
 app.use(notFoundHandler);

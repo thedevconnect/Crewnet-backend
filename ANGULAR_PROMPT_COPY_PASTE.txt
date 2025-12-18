@@ -1,0 +1,100 @@
+Mujhe ek complete Angular application banana hai jo neeche diye gaye backend APIs ke saath integrate ho. Backend already ready hai.
+
+BACKEND BASE URL: http://localhost:3000/api
+
+AUTHENTICATION:
+- JWT token required for protected routes
+- Header: Authorization: Bearer <token>
+- Token store karo localStorage me after login
+
+APIS TO INTEGRATE:
+
+1. AUTH APIs:
+   - POST /api/auth/register - {name, email, password}
+   - POST /api/auth/login - {email, password} - returns {success, token, user}
+   - GET /api/auth/users?page=1&limit=100&search= - returns users list with pagination
+
+2. EMPLOYEE APIs:
+   - GET /api/employees?page=1&limit=10&sortBy=name&sortOrder=ASC - returns employees with pagination
+   - GET /api/employees/:id - get single employee
+   - POST /api/employees - create employee {name, email, phone, department, status, joiningDate}
+   - PUT /api/employees/:id - update employee
+   - DELETE /api/employees/:id - delete employee
+
+3. ATTENDANCE APIs (All require JWT):
+   - POST /api/attendance/swipe-in - swipe in for today
+   - POST /api/attendance/swipe-out - swipe out for today
+   - GET /api/attendance/today-status - returns {canSwipeIn, canSwipeOut, attendance}
+
+REQUIREMENTS:
+
+1. SERVICES:
+   - AuthService: register(), login(), getUsers(), logout(), isAuthenticated(), getToken()
+   - EmployeeService: getEmployees(), getEmployee(), createEmployee(), updateEmployee(), deleteEmployee()
+   - AttendanceService: swipeIn(), swipeOut(), getTodayStatus()
+
+2. COMPONENTS:
+   - LoginComponent: Login form with email/password
+   - RegisterComponent: Registration form
+   - EmployeeListComponent: Table with pagination, search, sort
+   - EmployeeFormComponent: Create/Edit employee (reusable)
+   - EmployeeDetailComponent: View employee details
+   - AttendanceDashboardComponent: Swipe in/out buttons with status
+   - DashboardComponent: Main dashboard with stats
+   - HeaderComponent: Navigation with user info and logout
+
+3. FEATURES:
+   - JWT authentication with token storage
+   - AuthGuard for protected routes
+   - HTTP Interceptor to add Authorization header automatically
+   - Form validation (Angular reactive forms)
+   - Loading spinners during API calls
+   - Toast notifications for success/error
+   - Responsive design (Angular Material or Bootstrap)
+   - Error handling (401 redirect to login, show user-friendly errors)
+   - Pagination for employee list
+   - Search and sort functionality
+   - Confirmation dialogs for delete
+
+4. ROUTING:
+   / -> Login (if not auth) or Dashboard
+   /login -> Login page
+   /register -> Register page
+   /dashboard -> Main dashboard (protected)
+   /employees -> Employee list (protected)
+   /employees/new -> Add employee (protected)
+   /employees/:id -> Employee details (protected)
+   /employees/:id/edit -> Edit employee (protected)
+   /attendance -> Attendance dashboard (protected)
+
+5. UI/UX:
+   - Modern, clean design
+   - Mobile responsive
+   - Loading states
+   - Error messages
+   - Success notifications
+   - Form validation with error messages
+   - Date formatting (YYYY-MM-DD for backend, readable format for display)
+
+6. TECHNICAL:
+   - Angular 17+ with TypeScript
+   - RxJS for observables
+   - Angular Material or Bootstrap
+   - Reactive Forms
+   - HTTP Client
+   - Router
+
+IMPLEMENTATION STEPS:
+1. Setup Angular project with routing
+2. Create services (Auth, Employee, Attendance)
+3. Create HTTP Interceptor for JWT
+4. Create AuthGuard
+5. Create authentication components (Login, Register)
+6. Create employee management components
+7. Create attendance components
+8. Create dashboard and layout
+9. Add error handling and loading states
+10. Test all functionality
+
+Sab kuch production-ready code me banana hai with proper error handling, validation, and user experience.
+

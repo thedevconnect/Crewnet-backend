@@ -19,14 +19,12 @@ router.post('/register', async (req, res) => {
     });
 
     const { name, email, password } = req.body;
-
-    // Step 2: Validation with detailed error messages
     if (!name || !email || !password) {
       const missingFields = [];
       if (!name) missingFields.push('name');
       if (!email) missingFields.push('email');
       if (!password) missingFields.push('password');
-      
+
       return res.status(400).json({
         success: false,
         message: `Missing required fields: ${missingFields.join(', ')}`,
@@ -56,27 +54,22 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Step 4: Store password directly (plain text - NOT RECOMMENDED for production)
-    // Note: In production, password should be hashed for security
-    // Step 5: Insert user into database
     console.log('Attempting to insert user:', { name, email });
     const [result] = await promisePool.execute(
       'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
       [name, email, password]
     );
-    
+
     console.log('Insert result:', result);
     console.log('Inserted user ID:', result.insertId);
 
-    // Verify the insert by fetching the user
     const [insertedUser] = await promisePool.execute(
       'SELECT * FROM users WHERE id = ?',
       [result.insertId]
     );
-    
+
     console.log('Verified inserted user:', insertedUser);
 
-    // Step 6: Send success response
     res.status(201).json({
       success: true,
       message: 'User successfully created',
@@ -84,7 +77,6 @@ router.post('/register', async (req, res) => {
         id: result.insertId,
         name: name,
         email: email
-        // password intentionally excluded
       }
     });
 
