@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import employeeRoutes from './routes/employee.routes.js';
+import employeeOnboardingRoutes from './routes/employee-onboarding.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import { verifyToken } from './middlewares/auth.middleware.js';
@@ -86,12 +87,14 @@ app.get('/api/diag/tables', async (req, res) => {
 
 // API routes - Register BEFORE 404 handler
 app.use('/api/auth', authRoutes);
-app.use('/api/employees', employeeRoutes);
+app.use('/api/employees', employeeRoutes); // Old employee routes (for backward compatibility)
+app.use('/api/employees-onboarding', employeeOnboardingRoutes); // New employee onboarding routes
 app.use('/api/attendance', verifyToken, attendanceRoutes);
 
 // Debug route registration
 console.log('✅ Auth routes registered at /api/auth');
 console.log('✅ Employee routes registered at /api/employees');
+console.log('✅ Employee Onboarding routes registered at /api/employees-onboarding');
 console.log('✅ Attendance routes registered at /api/attendance (protected)');
 console.log('📋 Available routes:');
 console.log('   POST /api/auth/register');

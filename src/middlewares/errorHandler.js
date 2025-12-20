@@ -18,11 +18,20 @@ const errorHandler = (err, req, res, next) => {
   });
 
   // Send error response
-  res.status(error.statusCode).json({
+  const response = {
     success: false,
-    message: error.message,
-    ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
-  });
+    message: error.message
+  };
+
+  if (error.errorCode) {
+    response.error = error.errorCode;
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    response.stack = error.stack;
+  }
+
+  res.status(error.statusCode).json(response);
 };
 
 export default errorHandler;

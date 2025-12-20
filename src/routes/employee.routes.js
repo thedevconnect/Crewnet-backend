@@ -87,7 +87,7 @@ const employeeValidation = {
       .withMessage('Limit must be between 1 and 100'),
     query('sortBy')
       .optional()
-      .isIn(['name', 'email', 'department', 'status', 'joiningDate', 'createdAt'])
+      .isIn(['name', 'email', 'department', 'status', 'joiningDate', 'createdAt', 'created_at'])
       .withMessage('Invalid sort field'),
     query('sortOrder')
       .optional()
