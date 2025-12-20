@@ -91,7 +91,7 @@ class EmployeeOnboardingService {
       }
 
       // Date of birth validation (should be in past)
-      const dob = new Date(data.dateOfBirth);
+      const dob = data.dateOfBirth instanceof Date ? data.dateOfBirth : new Date(data.dateOfBirth);
       const today = new Date();
       if (dob >= today) {
         throw new ApiError(400, 'Date of birth must be in the past', true, '', 'VALIDATION_ERROR');
@@ -99,7 +99,8 @@ class EmployeeOnboardingService {
 
       // Age validation (minimum 18 years)
       const age = today.getFullYear() - dob.getFullYear();
-      if (age < 18) {
+      const monthDiff = today.getMonth() - dob.getMonth();
+      if (age < 18 || (age === 18 && monthDiff < 0) || (age === 18 && monthDiff === 0 && today.getDate() < dob.getDate())) {
         throw new ApiError(400, 'Employee must be at least 18 years old', true, '', 'VALIDATION_ERROR');
       }
 

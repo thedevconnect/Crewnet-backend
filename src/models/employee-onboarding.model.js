@@ -3,7 +3,20 @@ import db from '../config/db.js';
 class EmployeeOnboardingModel {
   // Generate employee code: EMP{YYYYMMDD}{3-digit-sequence}
   static async generateEmployeeCode(joiningDate) {
-    const dateStr = joiningDate.replace(/-/g, '').substring(0, 8); // YYYYMMDD
+    // Handle both string and Date object
+    let dateStr;
+    if (typeof joiningDate === 'string') {
+      dateStr = joiningDate.replace(/-/g, '').substring(0, 8); // YYYYMMDD
+    } else if (joiningDate instanceof Date) {
+      // Convert Date to YYYYMMDD format
+      const year = joiningDate.getFullYear();
+      const month = String(joiningDate.getMonth() + 1).padStart(2, '0');
+      const day = String(joiningDate.getDate()).padStart(2, '0');
+      dateStr = `${year}${month}${day}`;
+    } else {
+      throw new Error('Invalid joiningDate format');
+    }
+    
     const prefix = `EMP${dateStr}`;
     
     // Get count of employees created on same date
@@ -184,6 +197,14 @@ class EmployeeOnboardingModel {
       counter++;
     }
 
+    // Convert Date objects to MySQL date format (YYYY-MM-DD)
+    const formatDateForDB = (date) => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      return date;
+    };
+
     const sql = `INSERT INTO employees (
       employee_code, status, first_name, last_name, gender, date_of_birth,
       email, mobile_number, department, designation, employment_type, joining_date,
@@ -196,13 +217,13 @@ class EmployeeOnboardingModel {
       firstName,
       lastName,
       gender,
-      dateOfBirth,
+      formatDateForDB(dateOfBirth),
       email,
       mobileNumber,
       department,
       designation,
       employmentType,
-      joiningDate,
+      formatDateForDB(joiningDate),
       role,
       finalUsername,
       firstLogin
@@ -284,7 +305,14 @@ class EmployeeOnboardingModel {
     }
     if (joiningDate !== undefined) {
       updates.push('joining_date = ?');
-      params.push(joiningDate);
+      // Convert Date object to string if needed
+      const formatDateForDB = (date) => {
+        if (date instanceof Date) {
+          return date.toISOString().split('T')[0];
+        }
+        return date;
+      };
+      params.push(formatDateForDB(joiningDate));
     }
     if (role !== undefined) {
       updates.push('role = ?');
