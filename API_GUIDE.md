@@ -204,10 +204,10 @@ export class TokenInterceptor implements HttpInterceptor {
 
 ## Important Notes
 
-1. **Password Hashing**: Passwords automatically bcrypt se hash hote hain
-2. **JWT Token**: Login ke baad token milta hai, ise save karo aur protected routes ke liye use karo
-3. **CORS**: CORS already enabled hai, Angular se directly call kar sakte ho
-4. **Error Handling**: Har endpoint me proper error handling hai
+1. **Password Hashing**: Passwords are automatically hashed using bcrypt
+2. **JWT Token**: Token is received after login, save it and use it for protected routes
+3. **CORS**: CORS is already enabled, you can directly call from Angular
+4. **Error Handling**: All endpoints have proper error handling
 
 ---
 

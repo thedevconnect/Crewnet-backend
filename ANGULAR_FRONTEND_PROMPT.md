@@ -2,7 +2,7 @@
 
 ## Complete Backend API Integration Guide
 
-Mujhe ek complete Angular application banana hai jo neeche diye gaye backend APIs ke saath integrate ho. Backend already ready hai aur sab APIs working hain.
+I need to create a complete Angular application that integrates with the backend APIs listed below. The backend is already ready and all APIs are working.
 
 ---
 
@@ -14,7 +14,7 @@ http://localhost:3000/api
 ```
 
 ### Authentication
-Sab protected APIs ke liye JWT token required hai:
+JWT token is required for all protected APIs:
 ```
 Authorization: Bearer <jwt_token>
 ```
@@ -520,5 +520,5 @@ Create an HTTP Interceptor that:
 
 ---
 
-Yeh complete prompt hai jo sab kuch cover karta hai. Isse use karke ek professional Angular application bana sakte ho jo backend ke saath perfectly integrate ho.
+This is a complete prompt that covers everything. You can use this to build a professional Angular application that integrates perfectly with the backend.
 

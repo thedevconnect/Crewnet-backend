@@ -1,11 +1,11 @@
-Mujhe ek complete Angular application banana hai jo neeche diye gaye backend APIs ke saath integrate ho. Backend already ready hai.
+I need to create a complete Angular application that integrates with the backend APIs listed below. The backend is already ready.
 
 BACKEND BASE URL: http://localhost:3000/api
 
 AUTHENTICATION:
 - JWT token required for protected routes
 - Header: Authorization: Bearer <token>
-- Token store karo localStorage me after login
+- Store token in localStorage after login
 
 APIS TO INTEGRATE:
 
@@ -96,5 +96,5 @@ IMPLEMENTATION STEPS:
 9. Add error handling and loading states
 10. Test all functionality
 
-Sab kuch production-ready code me banana hai with proper error handling, validation, and user experience.
+Everything should be built in production-ready code with proper error handling, validation, and user experience.
 

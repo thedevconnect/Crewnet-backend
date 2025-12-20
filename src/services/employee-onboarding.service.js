@@ -97,23 +97,10 @@ class EmployeeOnboardingService {
         throw new ApiError(400, 'Date of birth must be in the past', true, '', 'VALIDATION_ERROR');
       }
 
-      // Age validation (minimum 18 years)
+      // Basic age check (must be at least 18 years)
       const age = today.getFullYear() - dob.getFullYear();
-      const monthDiff = today.getMonth() - dob.getMonth();
-      if (age < 18 || (age === 18 && monthDiff < 0) || (age === 18 && monthDiff === 0 && today.getDate() < dob.getDate())) {
+      if (age < 18) {
         throw new ApiError(400, 'Employee must be at least 18 years old', true, '', 'VALIDATION_ERROR');
-      }
-
-      // Department validation
-      const validDepartments = ['HR', 'IT', 'Finance', 'Sales', 'Marketing', 'Operations'];
-      if (!validDepartments.includes(data.department)) {
-        throw new ApiError(400, `Invalid department. Must be one of: ${validDepartments.join(', ')}`, true, '', 'VALIDATION_ERROR');
-      }
-
-      // Designation validation
-      const validDesignations = ['Manager', 'Senior Manager', 'Executive', 'Senior Executive', 'Associate', 'Intern'];
-      if (!validDesignations.includes(data.designation)) {
-        throw new ApiError(400, `Invalid designation. Must be one of: ${validDesignations.join(', ')}`, true, '', 'VALIDATION_ERROR');
       }
 
       // Create employee
@@ -158,22 +145,6 @@ class EmployeeOnboardingService {
         const today = new Date();
         if (dob >= today) {
           throw new ApiError(400, 'Date of birth must be in the past', true, '', 'VALIDATION_ERROR');
-        }
-      }
-
-      // Department validation (if provided)
-      if (data.department) {
-        const validDepartments = ['HR', 'IT', 'Finance', 'Sales', 'Marketing', 'Operations'];
-        if (!validDepartments.includes(data.department)) {
-          throw new ApiError(400, `Invalid department. Must be one of: ${validDepartments.join(', ')}`, true, '', 'VALIDATION_ERROR');
-        }
-      }
-
-      // Designation validation (if provided)
-      if (data.designation) {
-        const validDesignations = ['Manager', 'Senior Manager', 'Executive', 'Senior Executive', 'Associate', 'Intern'];
-        if (!validDesignations.includes(data.designation)) {
-          throw new ApiError(400, `Invalid designation. Must be one of: ${validDesignations.join(', ')}`, true, '', 'VALIDATION_ERROR');
         }
       }
 

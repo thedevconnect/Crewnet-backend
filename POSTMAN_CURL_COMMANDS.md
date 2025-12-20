@@ -1,6 +1,6 @@
 # Postman Test Commands
 
-## 1. Register API (Naya User Create Karne Ke Liye)
+## 1. Register API (Create New User)
 
 ### cURL Command:
 ```bash
@@ -13,13 +13,13 @@ curl -X POST http://localhost:3000/api/register \
   }'
 ```
 
-### Postman Me Kaise Use Karein:
+### How to Use in Postman:
 1. **Method:** POST
 2. **URL:** `http://localhost:3000/api/register`
 3. **Headers:**
    - Key: `Content-Type`
    - Value: `application/json`
-4. **Body:** (raw JSON select karo)
+4. **Body:** (select raw JSON)
    ```json
    {
      "name": "Test User",
@@ -42,13 +42,13 @@ curl -X POST http://localhost:3000/api/login \
   }'
 ```
 
-### Postman Me Kaise Use Karein:
+### How to Use in Postman:
 1. **Method:** POST
 2. **URL:** `http://localhost:3000/api/login`
 3. **Headers:**
    - Key: `Content-Type`
    - Value: `application/json`
-4. **Body:** (raw JSON select karo)
+4. **Body:** (select raw JSON)
    ```json
    {
      "email": "test@example.com",
@@ -58,7 +58,7 @@ curl -X POST http://localhost:3000/api/login \
 
 ---
 
-## 3. Health Check (Server Check Karne Ke Liye)
+## 3. Health Check (To Check Server Status)
 
 ### cURL Command:
 ```bash
@@ -104,7 +104,7 @@ curl -X GET http://localhost:3000/health
 ```json
 {
   "success": false,
-  "message": "Invalid email ya password"
+  "message": "Invalid email or password"
 }
 ```
 
@@ -112,13 +112,13 @@ curl -X GET http://localhost:3000/health
 
 ## Testing Steps:
 
-1. **Pehle Register karo** - Naya user create karo
-2. **Phir Login karo** - Same credentials se login karo
-3. **Token save karo** - Response me mila token ko copy karo (Angular me use hoga)
+1. **First Register** - Create a new user
+2. **Then Login** - Login with the same credentials
+3. **Save Token** - Copy the token from the response (will be used in Angular)
 
 ---
 
-## Quick Test (PowerShell me):
+## Quick Test (In PowerShell):
 
 ### Register:
 ```powershell
