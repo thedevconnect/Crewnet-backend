@@ -7,8 +7,10 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT} (${NODE_ENV})`);
+  console.log(`Environment: ${NODE_ENV}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
 });
 
 process.on('unhandledRejection', (err) => {

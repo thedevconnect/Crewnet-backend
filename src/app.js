@@ -19,10 +19,15 @@ const app = express();
 app.use(helmet());
 
 // CORS configuration
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true
-}));
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+    : '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
 
 // Logging middleware
 if (process.env.NODE_ENV === 'development') {
