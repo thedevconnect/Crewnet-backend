@@ -336,18 +336,18 @@ class EmployeeOnboardingModel {
     return this.findById(id);
   }
 
-  // Delete employee (soft delete - set status to Inactive)
+  // Delete employee (hard delete - actually removes from database)
   static async delete(id) {
+    const [result] = await db.execute('DELETE FROM employees WHERE id = ?', [id]);
+    return result.affectedRows > 0;
+  }
+
+  // Soft delete (set status to Inactive - if needed)
+  static async softDelete(id) {
     const [result] = await db.execute(
       'UPDATE employees SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       ['Inactive', id]
     );
-    return result.affectedRows > 0;
-  }
-
-  // Hard delete (if needed)
-  static async hardDelete(id) {
-    const [result] = await db.execute('DELETE FROM employees WHERE id = ?', [id]);
     return result.affectedRows > 0;
   }
 }
