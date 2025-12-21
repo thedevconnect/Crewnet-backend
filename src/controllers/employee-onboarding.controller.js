@@ -2,98 +2,66 @@ import employeeOnboardingService from '../services/employee-onboarding.service.j
 import ApiResponse from '../utils/ApiResponse.js';
 
 class EmployeeOnboardingController {
-  // Get dropdown options
   async getDropdownOptions(req, res, next) {
     try {
       const options = employeeOnboardingService.getDropdownOptions();
-      const response = ApiResponse.success('Dropdown options fetched successfully', options);
-      res.status(200).json(response);
+      res.status(200).json(ApiResponse.success('Dropdown options fetched successfully', options));
     } catch (error) {
       next(error);
     }
   }
 
-  // Get all employees
   async getEmployees(req, res, next) {
     try {
       const result = await employeeOnboardingService.getAllEmployees(req.query);
-      
-      // Transform employee list
       const transformedEmployees = result.employees.map(emp => this.transformEmployeeResponse(emp));
-      
-      const response = ApiResponse.success('Employees fetched successfully', {
+      res.status(200).json(ApiResponse.success('Employees fetched successfully', {
         employees: transformedEmployees,
         pagination: result.pagination
-      });
-      res.status(200).json(response);
+      }));
     } catch (error) {
       next(error);
     }
   }
 
-  // Get employee by ID
   async getEmployee(req, res, next) {
     try {
-      const { id } = req.params;
-      const employee = await employeeOnboardingService.getEmployeeById(id);
-      
-      // Transform database fields to API format
-      const transformedEmployee = this.transformEmployeeResponse(employee);
-      
-      const response = ApiResponse.success('Employee fetched successfully', transformedEmployee);
-      res.status(200).json(response);
+      const employee = await employeeOnboardingService.getEmployeeById(req.params.id);
+      res.status(200).json(ApiResponse.success('Employee fetched successfully', this.transformEmployeeResponse(employee)));
     } catch (error) {
       next(error);
     }
   }
 
-  // Create employee
   async createEmployee(req, res, next) {
     try {
       const employee = await employeeOnboardingService.createEmployee(req.body);
-      
-      // Transform database fields to API format
-      const transformedEmployee = this.transformEmployeeResponse(employee);
-      
-      const response = ApiResponse.created('Employee created successfully', transformedEmployee);
-      res.status(201).json(response);
+      res.status(201).json(ApiResponse.created('Employee created successfully', this.transformEmployeeResponse(employee)));
     } catch (error) {
       next(error);
     }
   }
 
-  // Update employee
   async updateEmployee(req, res, next) {
     try {
-      const { id } = req.params;
-      const employee = await employeeOnboardingService.updateEmployee(id, req.body);
-      
-      // Transform database fields to API format
-      const transformedEmployee = this.transformEmployeeResponse(employee);
-      
-      const response = ApiResponse.success('Employee updated successfully', transformedEmployee);
-      res.status(200).json(response);
+      const employee = await employeeOnboardingService.updateEmployee(req.params.id, req.body);
+      res.status(200).json(ApiResponse.success('Employee updated successfully', this.transformEmployeeResponse(employee)));
     } catch (error) {
       next(error);
     }
   }
 
-  // Delete employee
   async deleteEmployee(req, res, next) {
     try {
-      const { id } = req.params;
-      const result = await employeeOnboardingService.deleteEmployee(id);
-      const response = ApiResponse.success(result.message);
-      res.status(200).json(response);
+      const result = await employeeOnboardingService.deleteEmployee(req.params.id);
+      res.status(200).json(ApiResponse.success(result.message));
     } catch (error) {
       next(error);
     }
   }
 
-  // Transform database snake_case to API camelCase
   transformEmployeeResponse(employee) {
     if (!employee) return null;
-
     return {
       id: employee.id,
       employeeCode: employee.employee_code,

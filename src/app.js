@@ -35,18 +35,7 @@ if (process.env.NODE_ENV === 'development') {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Debug middleware - log all requests
-app.use((req, res, next) => {
-  console.log(`📍 ${req.method} ${req.originalUrl} - Path: ${req.path}`);
-  next();
-});
-
-// Test route
-app.post('/test-route', (req, res) => {
-  res.json({ success: true, message: 'Test route works' });
-});
-
-// Health check route with DB status
+// Health check
 app.get('/health', async (req, res) => {
   let dbStatus = 'error';
   try {
@@ -56,53 +45,18 @@ app.get('/health', async (req, res) => {
   } catch (error) {
     dbStatus = 'error';
   }
-
   res.json({
     status: 'ok',
     db: dbStatus,
-    env: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
+    env: process.env.NODE_ENV || 'development'
   });
 });
 
-// Diagnostic route - check database tables
-app.get('/api/diag/tables', async (req, res) => {
-  try {
-    const { promisePool } = await import('./config/db.js');
-    const [tables] = await promisePool.execute(
-      'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?',
-      [process.env.DB_NAME || 'crewnet']
-    );
-    res.json({
-      success: true,
-      tables: tables.map(t => t.TABLE_NAME)
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// API routes - Register BEFORE 404 handler
+// API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/employees', employeeRoutes); // Old employee routes (for backward compatibility)
-app.use('/api/employees-onboarding', employeeOnboardingRoutes); // New employee onboarding routes
+app.use('/api/employees', employeeRoutes);
+app.use('/api/employees-onboarding', employeeOnboardingRoutes);
 app.use('/api/attendance', verifyToken, attendanceRoutes);
-
-// Debug route registration
-console.log('✅ Auth routes registered at /api/auth');
-console.log('✅ Employee routes registered at /api/employees');
-console.log('✅ Employee Onboarding routes registered at /api/employees-onboarding');
-console.log('✅ Attendance routes registered at /api/attendance (protected)');
-console.log('📋 Available routes:');
-console.log('   POST /api/auth/register');
-console.log('   POST /api/auth/login');
-console.log('   GET  /api/auth/profile/:id');
-console.log('   POST /api/attendance/swipe-in (requires auth)');
-console.log('   POST /api/attendance/swipe-out (requires auth)');
-console.log('   GET  /api/attendance/today-status (requires auth)');
 
 // 404 handler
 app.use(notFoundHandler);
