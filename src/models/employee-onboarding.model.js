@@ -81,30 +81,30 @@ class EmployeeOnboardingModel {
     const offsetNum = parseInt(offset);
     sql += ` LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
-    const [rows] = await db.execute(sql, params);
+    // Execute queries in parallel for better performance
+    const [[rows], [[countResult]]] = await Promise.all([
+      db.execute(sql, params),
+      (async () => {
+        let countSql = 'SELECT COUNT(*) as total FROM employees WHERE 1=1';
+        const countParams = [];
+        if (search) {
+          countSql += ' AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR employee_code LIKE ?)';
+          const searchTerm = `%${search}%`;
+          countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+        }
+        if (status) {
+          countSql += ' AND status = ?';
+          countParams.push(status);
+        }
+        if (department) {
+          countSql += ' AND department = ?';
+          countParams.push(department);
+        }
+        return db.execute(countSql, countParams);
+      })()
+    ]);
 
-    // Get total count for pagination
-    let countSql = 'SELECT COUNT(*) as total FROM employees WHERE 1=1';
-    const countParams = [];
-
-    if (search) {
-      countSql += ' AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR employee_code LIKE ?)';
-      const searchTerm = `%${search}%`;
-      countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
-    }
-
-    if (status) {
-      countSql += ' AND status = ?';
-      countParams.push(status);
-    }
-
-    if (department) {
-      countSql += ' AND department = ?';
-      countParams.push(department);
-    }
-
-    const [countResult] = await db.execute(countSql, countParams);
-    const totalCount = countResult[0].total;
+    const totalCount = countResult.total;
 
     return {
       employees: rows,

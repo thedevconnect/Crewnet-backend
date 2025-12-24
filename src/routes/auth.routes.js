@@ -65,12 +65,51 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const [users] = await promisePool.execute(
-      'SELECT id, name, email, password FROM users WHERE email = ?',
-      [email.trim()]
-    );
+    const trimmedEmail = email.trim();
+    
+    // Debug logging in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[LOGIN] Attempting login for email: ${trimmedEmail}`);
+      console.log(`[LOGIN] Password provided: ${password ? 'Yes (length: ' + password.length + ')' : 'No'}`);
+    }
 
-    if (users.length === 0 || password !== users[0].password) {
+    let users;
+    try {
+      [users] = await promisePool.execute(
+        'SELECT id, name, email, password FROM users WHERE email = ?',
+        [trimmedEmail]
+      );
+    } catch (dbError) {
+      console.error('[LOGIN] Database error:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+      });
+    }
+
+    if (users.length === 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[LOGIN] ❌ User not found: ${trimmedEmail}`);
+      }
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    const storedPassword = users[0].password;
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[LOGIN] User found: ${users[0].email} (ID: ${users[0].id})`);
+      console.log(`[LOGIN] Stored password length: ${storedPassword ? storedPassword.length : 'null'}`);
+      console.log(`[LOGIN] Provided password length: ${password ? password.length : 'null'}`);
+    }
+
+    if (password !== storedPassword) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[LOGIN] ❌ Password mismatch for user: ${trimmedEmail}`);
+        console.log(`[LOGIN] Expected: "${storedPassword}", Got: "${password}"`);
+      }
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -90,6 +129,10 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[LOGIN] Successful login for user: ${user.email} (ID: ${user.id})`);
+    }
 
     res.json({
       success: true,
