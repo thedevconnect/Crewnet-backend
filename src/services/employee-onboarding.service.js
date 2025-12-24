@@ -99,7 +99,135 @@ class EmployeeOnboardingService {
       const age = today.getFullYear() - dob.getFullYear();
       if (age < 18) throw new ApiError(400, 'Employee must be at least 18 years old', true, '', 'VALIDATION_ERROR');
 
-      return await EmployeeOnboardingModel.create(normalizedData);
+      // Create employee
+      const employee = await EmployeeOnboardingModel.create(normalizedData);
+
+      // Verify employee_code exists in returned employee object
+      if (!employee || !employee.employee_code) {
+        console.error('[EMPLOYEE ONBOARDING] ⚠️ Employee created but employee_code not found in response:', employee);
+        // Try to get employee_code from database
+        const employeeWithCode = await EmployeeOnboardingModel.findById(employee.id);
+        if (employeeWithCode && employeeWithCode.employee_code) {
+          employee.employee_code = employeeWithCode.employee_code;
+          console.log(`[EMPLOYEE ONBOARDING] Retrieved employee_code from database: ${employee.employee_code}`);
+        }
+      }
+
+      // Create user in users table with default password ESS@1234 and employee_code
+      try {
+        const { promisePool } = await import('../config/db.js');
+        const fullName = `${normalizedData.firstName} ${normalizedData.lastName}`.trim();
+        const defaultPassword = 'ESS@1234';
+        const employeeCode = employee.employee_code; // Get employee_code from created employee
+
+        console.log(`[EMPLOYEE ONBOARDING] Creating user for email: ${normalizedData.email}, employee_code: ${employeeCode || 'NOT FOUND'}`);
+        
+        if (!employeeCode) {
+          console.error('[EMPLOYEE ONBOARDING] ❌ Employee code is missing! Cannot create user with employee_code.');
+        }
+
+        // First, ensure employee_code column exists
+        try {
+          await promisePool.execute(
+            'ALTER TABLE users ADD COLUMN employee_code VARCHAR(50) UNIQUE NULL'
+          );
+          console.log('[EMPLOYEE ONBOARDING] Added employee_code column to users table');
+        } catch (alterError) {
+          // Column might already exist, ignore error
+          if (!alterError.message.includes('Duplicate column name') && !alterError.message.includes('Duplicate column')) {
+            console.warn('[EMPLOYEE ONBOARDING] Could not add employee_code column:', alterError.message);
+          }
+        }
+
+        // Check if user already exists with this email (check email first, then employee_code)
+        let existingUsers = [];
+        try {
+          [existingUsers] = await promisePool.execute(
+            'SELECT id FROM users WHERE email = ?',
+            [normalizedData.email.trim()]
+          );
+        } catch (checkError) {
+          console.error('[EMPLOYEE ONBOARDING] Error checking existing user:', checkError);
+        }
+
+        // If user doesn't exist by email, check by employee_code
+        if (existingUsers.length === 0 && employeeCode) {
+          try {
+            [existingUsers] = await promisePool.execute(
+              'SELECT id FROM users WHERE employee_code = ?',
+              [employeeCode]
+            );
+          } catch (codeCheckError) {
+            // If employee_code column doesn't exist yet, ignore
+            if (!codeCheckError.message.includes('Unknown column')) {
+              console.error('[EMPLOYEE ONBOARDING] Error checking employee_code:', codeCheckError);
+            }
+          }
+        }
+
+        // Only create user if email and employee_code don't exist in users table
+        if (existingUsers.length === 0) {
+          // Try to insert with employee_code first
+          try {
+            await promisePool.execute(
+              'INSERT INTO users (name, email, password, employee_code) VALUES (?, ?, ?, ?)',
+              [fullName, normalizedData.email.trim(), defaultPassword, employeeCode]
+            );
+            console.log(`[EMPLOYEE ONBOARDING] ✅ User created successfully for email: ${normalizedData.email}, employee_code: ${employeeCode} with default password ESS@1234`);
+          } catch (insertError) {
+            // If employee_code column doesn't exist, insert without it
+            if (insertError.message.includes('Unknown column') || insertError.message.includes('employee_code')) {
+              try {
+                await promisePool.execute(
+                  'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
+                  [fullName, normalizedData.email.trim(), defaultPassword]
+                );
+                console.log(`[EMPLOYEE ONBOARDING] ⚠️ User created for email: ${normalizedData.email} without employee_code (column not available)`);
+                
+                // Try to update with employee_code after insert
+                try {
+                  await promisePool.execute(
+                    'UPDATE users SET employee_code = ? WHERE email = ?',
+                    [employeeCode, normalizedData.email.trim()]
+                  );
+                  console.log(`[EMPLOYEE ONBOARDING] ✅ Updated user with employee_code: ${employeeCode}`);
+                } catch (updateError) {
+                  console.warn(`[EMPLOYEE ONBOARDING] Could not update employee_code: ${updateError.message}`);
+                }
+              } catch (fallbackError) {
+                console.error('[EMPLOYEE ONBOARDING] ❌ Error creating user (fallback):', fallbackError);
+                throw fallbackError;
+              }
+            } else {
+              console.error('[EMPLOYEE ONBOARDING] ❌ Error creating user:', insertError);
+              throw insertError;
+            }
+          }
+        } else {
+          console.log(`[EMPLOYEE ONBOARDING] ⚠️ User already exists for email: ${normalizedData.email} or employee_code: ${employeeCode}`);
+          
+          // Update employee_code if user exists but doesn't have it
+          if (employeeCode && existingUsers.length > 0) {
+            try {
+              await promisePool.execute(
+                'UPDATE users SET employee_code = ? WHERE id = ? AND (employee_code IS NULL OR employee_code = "")',
+                [employeeCode, existingUsers[0].id]
+              );
+              console.log(`[EMPLOYEE ONBOARDING] ✅ Updated existing user with employee_code: ${employeeCode}`);
+            } catch (updateError) {
+              if (!updateError.message.includes('Unknown column')) {
+                console.warn(`[EMPLOYEE ONBOARDING] Could not update employee_code: ${updateError.message}`);
+              }
+            }
+          }
+        }
+      } catch (userError) {
+        // Log error but don't fail employee creation if user creation fails
+        console.error('[EMPLOYEE ONBOARDING] ❌ Error in user creation process:', userError);
+        // Continue - employee is already created
+      }
+
+      return employee;
     } catch (error) {
       if (error instanceof ApiError) throw error;
       throw new ApiError(500, 'Failed to create employee', false, error.stack);
@@ -180,7 +308,124 @@ class EmployeeOnboardingService {
         if (dob >= today) throw new ApiError(400, 'Date of birth must be in the past', true, '', 'VALIDATION_ERROR');
       }
 
-      return await EmployeeOnboardingModel.update(id, normalizedData);
+      // Update employee
+      const updatedEmployee = await EmployeeOnboardingModel.update(id, normalizedData);
+
+      // Update user in users table if email or name changed
+      try {
+        const { promisePool } = await import('../config/db.js');
+        
+        // Check if user exists with old email or employee_code
+        let oldUsers;
+        try {
+          [oldUsers] = await promisePool.execute(
+            'SELECT id, email, employee_code FROM users WHERE email = ? OR employee_code = ?',
+            [existingEmployee.email, updatedEmployee.employee_code]
+          );
+        } catch (columnError) {
+          // If employee_code column doesn't exist, fallback to email only
+          if (columnError.message.includes('Unknown column')) {
+            [oldUsers] = await promisePool.execute(
+              'SELECT id, email FROM users WHERE email = ?',
+              [existingEmployee.email]
+            );
+          } else {
+            throw columnError;
+          }
+        }
+
+        if (oldUsers.length > 0) {
+          const user = oldUsers[0];
+          const updates = [];
+          const params = [];
+
+          // Update name if firstName or lastName changed
+          if (normalizedData.firstName || normalizedData.lastName) {
+            const newFirstName = normalizedData.firstName || existingEmployee.first_name;
+            const newLastName = normalizedData.lastName || existingEmployee.last_name;
+            const fullName = `${newFirstName} ${newLastName}`.trim();
+            updates.push('name = ?');
+            params.push(fullName);
+          }
+
+          // Update email if changed
+          if (normalizedData.email && normalizedData.email !== existingEmployee.email) {
+            updates.push('email = ?');
+            params.push(normalizedData.email.trim());
+          }
+
+          // Update employee_code if employee was updated (employee_code might have changed)
+          if (updatedEmployee.employee_code) {
+            try {
+              // Check if employee_code column exists
+              updates.push('employee_code = ?');
+              params.push(updatedEmployee.employee_code);
+            } catch (e) {
+              // Column might not exist, skip it
+            }
+          }
+
+          if (updates.length > 0) {
+            params.push(user.id);
+            try {
+              await promisePool.execute(
+                `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+                params
+              );
+              console.log(`[EMPLOYEE ONBOARDING] User updated for employee ID: ${id}`);
+            } catch (updateError) {
+              // If employee_code column doesn't exist, try without it
+              if (updateError.message.includes('Unknown column')) {
+                const filteredUpdates = updates.filter(u => !u.includes('employee_code'));
+                const filteredParams = params.slice(0, -1).filter((p, i) => !updates[i].includes('employee_code'));
+                filteredParams.push(user.id);
+                if (filteredUpdates.length > 0) {
+                  await promisePool.execute(
+                    `UPDATE users SET ${filteredUpdates.join(', ')} WHERE id = ?`,
+                    filteredParams
+                  );
+                  console.log(`[EMPLOYEE ONBOARDING] User updated for employee ID: ${id} (without employee_code)`);
+                }
+              } else {
+                throw updateError;
+              }
+            }
+          }
+        } else {
+          // User doesn't exist, create one with default password and employee_code
+          const newFirstName = normalizedData.firstName || existingEmployee.first_name;
+          const newLastName = normalizedData.lastName || existingEmployee.last_name;
+          const fullName = `${newFirstName} ${newLastName}`.trim();
+          const email = normalizedData.email || existingEmployee.email;
+          const defaultPassword = 'ESS@1234';
+          const employeeCode = updatedEmployee.employee_code;
+
+          // Try to insert with employee_code, fallback to without if column doesn't exist
+          try {
+            await promisePool.execute(
+              'INSERT INTO users (name, email, password, employee_code) VALUES (?, ?, ?, ?)',
+              [fullName, email.trim(), defaultPassword, employeeCode]
+            );
+            console.log(`[EMPLOYEE ONBOARDING] User created for updated employee ID: ${id} with employee_code: ${employeeCode}`);
+          } catch (insertError) {
+            if (insertError.message.includes('Unknown column')) {
+              await promisePool.execute(
+                'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
+                [fullName, email.trim(), defaultPassword]
+              );
+              console.log(`[EMPLOYEE ONBOARDING] User created for updated employee ID: ${id} (employee_code column not available)`);
+            } else {
+              throw insertError;
+            }
+          }
+        }
+      } catch (userError) {
+        // Log error but don't fail employee update if user update fails
+        console.error('[EMPLOYEE ONBOARDING] Error updating user:', userError);
+        // Continue - employee is already updated
+      }
+
+      return updatedEmployee;
     } catch (error) {
       if (error instanceof ApiError) throw error;
       throw new ApiError(500, 'Failed to update employee', false, error.stack);

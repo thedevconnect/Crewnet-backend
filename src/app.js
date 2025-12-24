@@ -7,6 +7,7 @@ import employeeRoutes from './routes/employee.routes.js';
 import employeeOnboardingRoutes from './routes/employee-onboarding.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
+import attendanceApi from '../attendanceApi.js';
 import { verifyToken } from './middlewares/auth.middleware.js';
 import errorHandler from './middlewares/errorHandler.js';
 import notFoundHandler from './middlewares/notFoundHandler.js';
@@ -86,6 +87,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/employees-onboarding', employeeOnboardingRoutes);
 app.use('/api/attendance', verifyToken, attendanceRoutes);
+app.use('/attendance', attendanceApi); // Attendance API routes (without auth middleware)
 
 // 404 handler
 app.use(notFoundHandler);

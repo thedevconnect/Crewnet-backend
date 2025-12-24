@@ -22,10 +22,16 @@ router.post('/swipe-in', async (req, res) => {
       [emp_id, attendance_date]
     );
 
+    // If already swiped in, return existing record (preserves first swipe in time)
     if (existingRecords.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Already swiped in'
+      const [existingRecord] = await promisePool.execute(
+        'SELECT * FROM attendance WHERE id = ?',
+        [existingRecords[0].id]
+      );
+      return res.status(200).json({
+        success: true,
+        message: 'Swipe in successful',
+        data: existingRecord[0]
       });
     }
 
@@ -42,7 +48,7 @@ router.post('/swipe-in', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Swiped in successfully',
+      message: 'Swipe in successful',
       data: newRecord[0]
     });
 
@@ -87,13 +93,9 @@ router.post('/swipe-out', async (req, res) => {
     }
 
     const record = records[0];
-    if (record.swipe_out_time) {
-      return res.status(400).json({
-        success: false,
-        message: 'Already swiped out'
-      });
-    }
 
+    // Always update swipe out time to NOW() (allows multiple swipe-outs, keeps LAST one)
+    // No need to check if already swiped out - always update to latest time
     await promisePool.execute(
       `UPDATE attendance SET swipe_out_time = NOW(), status = 'OUT', updatedAt = NOW() WHERE id = ?`,
       [record.id]
@@ -106,7 +108,7 @@ router.post('/swipe-out', async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Swiped out successfully',
+      message: 'Swipe out successful',
       data: updatedRecord[0]
     });
 

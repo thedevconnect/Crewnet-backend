@@ -54,6 +54,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /login
+// Login with email OR employee_code and password
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -61,24 +62,38 @@ router.post('/login', async (req, res) => {
     if (!email?.trim() || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email and password are required'
+        message: 'Email/Employee Code and password are required'
       });
     }
 
-    const trimmedEmail = email.trim();
+    const loginIdentifier = email.trim();
     
     // Debug logging in development
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[LOGIN] Attempting login for email: ${trimmedEmail}`);
+      console.log(`[LOGIN] Attempting login for: ${loginIdentifier}`);
       console.log(`[LOGIN] Password provided: ${password ? 'Yes (length: ' + password.length + ')' : 'No'}`);
     }
 
     let users;
     try {
-      [users] = await promisePool.execute(
-        'SELECT id, name, email, password FROM users WHERE email = ?',
-        [trimmedEmail]
-      );
+      // Try to login with email or employee_code
+      // Check if employee_code column exists first
+      try {
+        [users] = await promisePool.execute(
+          'SELECT id, name, email, password, employee_code FROM users WHERE email = ? OR employee_code = ?',
+          [loginIdentifier, loginIdentifier]
+        );
+      } catch (columnError) {
+        // If employee_code column doesn't exist, fallback to email only
+        if (columnError.message.includes('Unknown column')) {
+          [users] = await promisePool.execute(
+          'SELECT id, name, email, password FROM users WHERE email = ?',
+          [loginIdentifier]
+        );
+        } else {
+          throw columnError;
+        }
+      }
     } catch (dbError) {
       console.error('[LOGIN] Database error:', dbError);
       return res.status(500).json({
@@ -90,29 +105,29 @@ router.post('/login', async (req, res) => {
 
     if (users.length === 0) {
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[LOGIN] ❌ User not found: ${trimmedEmail}`);
+        console.log(`[LOGIN] ❌ User not found: ${loginIdentifier}`);
       }
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid email/employee code or password'
       });
     }
 
     const storedPassword = users[0].password;
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[LOGIN] User found: ${users[0].email} (ID: ${users[0].id})`);
+      console.log(`[LOGIN] User found: ${users[0].email} (ID: ${users[0].id}, Employee Code: ${users[0].employee_code || 'N/A'})`);
       console.log(`[LOGIN] Stored password length: ${storedPassword ? storedPassword.length : 'null'}`);
       console.log(`[LOGIN] Provided password length: ${password ? password.length : 'null'}`);
     }
 
     if (password !== storedPassword) {
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[LOGIN] ❌ Password mismatch for user: ${trimmedEmail}`);
+        console.log(`[LOGIN] ❌ Password mismatch for user: ${loginIdentifier}`);
         console.log(`[LOGIN] Expected: "${storedPassword}", Got: "${password}"`);
       }
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid email/employee code or password'
       });
     }
 
