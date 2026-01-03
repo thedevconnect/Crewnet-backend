@@ -3,8 +3,6 @@ import mysql from 'mysql2';
 
 dotenv.config();
 
-// Database configuration with environment variable support
-// Railway will automatically inject these, local uses .env or defaults
 const dbConfig = {
   host: process.env.DB_HOST || process.env.MYSQL_HOST || 'localhost',
   user: process.env.DB_USER || process.env.MYSQL_USER || 'root',
@@ -18,13 +16,8 @@ const dbConfig = {
   keepAliveInitialDelay: 0
 };
 
-// Create connection pool
 const pool = mysql.createPool(dbConfig);
-
-// Get promise-based pool
 const promisePool = pool.promise();
-
-// Test database connection (non-blocking)
 let dbConnected = false;
 
 const testConnection = async () => {
@@ -46,10 +39,8 @@ const testConnection = async () => {
   }
 };
 
-// Test connection on startup
 testConnection();
 
-// Export both pool and promisePool
 export { pool, promisePool, dbConnected };
 export default promisePool;
 

@@ -6,7 +6,6 @@ dotenv.config();
 
 const router = express.Router();
 
-// MySQL Connection Configuration
 const dbConfig = {
   host: process.env.DB_HOST || '103.30.72.61',
   user: process.env.DB_USER || 'sam',
@@ -18,24 +17,18 @@ const dbConfig = {
   queueLimit: 0
 };
 
-// Create MySQL connection pool
 const pool = mysql.createPool(dbConfig);
 
-// Helper function to get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
   const today = new Date();
   return today.toISOString().split('T')[0];
 };
 
-// Helper function to format MySQL datetime
 const formatDateTime = (dateTime) => {
   if (!dateTime) return null;
   return new Date(dateTime).toISOString();
 };
 
-// GET /attendance/today/:employeeId
-// Returns today's attendance record
-// If no record exists, returns { status: 'NOT_SWIPED' }
 router.get('/today/:employeeId', (req, res) => {
   try {
     const employeeId = parseInt(req.params.employeeId, 10);
@@ -48,11 +41,8 @@ router.get('/today/:employeeId', (req, res) => {
       });
     }
 
-    console.log('[ATTENDANCE API] GET /today request:', { employeeId, todayDate });
-
     pool.getConnection((err, connection) => {
       if (err) {
-        console.error('[ATTENDANCE API] Database connection error:', err);
         return res.status(500).json({
           success: false,
           message: 'Database connection error',
@@ -67,8 +57,6 @@ router.get('/today/:employeeId', (req, res) => {
 
         if (error) {
           console.error('[ATTENDANCE API] Database query error:', error);
-          console.error('[ATTENDANCE API] Query:', query);
-          console.error('[ATTENDANCE API] Params:', [employeeId, todayDate]);
           return res.status(500).json({
             success: false,
             message: 'Database query error',
@@ -84,30 +72,19 @@ router.get('/today/:employeeId', (req, res) => {
           });
         }
 
-        try {
-          const record = results[0];
-          res.status(200).json({
-            success: true,
-            status: record.status || 'IN',
-            swipe_in_time: formatDateTime(record.swipe_in_time),
-            swipe_out_time: formatDateTime(record.swipe_out_time),
-            attendance_date: record.attendance_date,
-            employee_id: record.emp_id,
-            id: record.id
-          });
-        } catch (formatError) {
-          console.error('[ATTENDANCE API] Error formatting response:', formatError);
-          console.error('[ATTENDANCE API] Record data:', results[0]);
-          return res.status(500).json({
-            success: false,
-            message: 'Error processing attendance record',
-            error: process.env.NODE_ENV === 'development' ? formatError.message : undefined
-          });
-        }
+        const record = results[0];
+        res.status(200).json({
+          success: true,
+          status: record.status || 'IN',
+          swipe_in_time: formatDateTime(record.swipe_in_time),
+          swipe_out_time: formatDateTime(record.swipe_out_time),
+          attendance_date: record.attendance_date,
+          employee_id: record.emp_id,
+          id: record.id
+        });
       });
     });
   } catch (error) {
-    console.error('[ATTENDANCE API] Unexpected error in GET /today:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -116,16 +93,10 @@ router.get('/today/:employeeId', (req, res) => {
   }
 });
 
-// POST /attendance/swipe-in
-// Marks swipe in for employeeId (from request body)
-// Inserts new row if no record exists for today (FIRST swipe in)
-// If already swiped in, returns existing record (keeps first swipe in time)
 router.post('/swipe-in', (req, res) => {
   try {
     const { employeeId } = req.body;
     const todayDate = getTodayDate();
-
-    console.log('[ATTENDANCE API] Swipe-in request:', { employeeId, todayDate, body: req.body });
 
     if (!employeeId) {
       return res.status(400).json({
@@ -136,7 +107,6 @@ router.post('/swipe-in', (req, res) => {
 
     pool.getConnection((err, connection) => {
       if (err) {
-        console.error('[ATTENDANCE API] Database connection error:', err);
         return res.status(500).json({
           success: false,
           message: 'Database connection error',
@@ -150,9 +120,6 @@ router.post('/swipe-in', (req, res) => {
       connection.query(checkQuery, [employeeId, todayDate], (checkError, checkResults) => {
         if (checkError) {
           connection.release();
-          console.error('[ATTENDANCE API] Database query error:', checkError);
-          console.error('[ATTENDANCE API] Query:', checkQuery);
-          console.error('[ATTENDANCE API] Params:', [employeeId, todayDate]);
           return res.status(500).json({
             success: false,
             message: 'Database query error',
@@ -186,9 +153,6 @@ router.post('/swipe-in', (req, res) => {
         connection.query(insertQuery, [employeeId, todayDate, 'IN'], (insertError, insertResults) => {
           if (insertError) {
             connection.release();
-            console.error('[ATTENDANCE API] Database insert error:', insertError);
-            console.error('[ATTENDANCE API] Query:', insertQuery);
-            console.error('[ATTENDANCE API] Params:', [employeeId, todayDate, 'IN']);
             return res.status(500).json({
               success: false,
               message: 'Failed to record swipe in',
@@ -203,7 +167,6 @@ router.post('/swipe-in', (req, res) => {
             connection.release();
             
             if (selectError) {
-              console.error('[ATTENDANCE API] Database select error:', selectError);
               return res.status(500).json({
                 success: false,
                 message: 'Swipe in recorded but failed to fetch record',
@@ -231,7 +194,6 @@ router.post('/swipe-in', (req, res) => {
       });
     });
   } catch (error) {
-    console.error('[ATTENDANCE API] Unexpected error in POST /swipe-in:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -240,16 +202,10 @@ router.post('/swipe-in', (req, res) => {
   }
 });
 
-// POST /attendance/swipe-out
-// Marks swipe out for employeeId (from request body)
-// Only allows if already swiped in today
-// Always updates swipe_out_time to the latest time (LAST swipe out is preserved)
 router.post('/swipe-out', (req, res) => {
   try {
     const { employeeId } = req.body;
     const todayDate = getTodayDate();
-
-    console.log('[ATTENDANCE API] Swipe-out request:', { employeeId, todayDate, body: req.body });
 
     if (!employeeId) {
       return res.status(400).json({
@@ -260,7 +216,6 @@ router.post('/swipe-out', (req, res) => {
 
     pool.getConnection((err, connection) => {
       if (err) {
-        console.error('[ATTENDANCE API] Database connection error:', err);
         return res.status(500).json({
           success: false,
           message: 'Database connection error',
@@ -274,9 +229,6 @@ router.post('/swipe-out', (req, res) => {
       connection.query(checkQuery, [employeeId, todayDate], (checkError, checkResults) => {
         if (checkError) {
           connection.release();
-          console.error('[ATTENDANCE API] Database query error:', checkError);
-          console.error('[ATTENDANCE API] Query:', checkQuery);
-          console.error('[ATTENDANCE API] Params:', [employeeId, todayDate]);
           return res.status(500).json({
             success: false,
             message: 'Database query error',
@@ -311,9 +263,6 @@ router.post('/swipe-out', (req, res) => {
         connection.query(updateQuery, ['OUT', record.id], (updateError, updateResults) => {
         if (updateError) {
           connection.release();
-          console.error('[ATTENDANCE API] Database update error:', updateError);
-          console.error('[ATTENDANCE API] Query:', updateQuery);
-          console.error('[ATTENDANCE API] Params:', ['OUT', record.id]);
           return res.status(500).json({
             success: false,
             message: 'Failed to record swipe out',
@@ -328,7 +277,6 @@ router.post('/swipe-out', (req, res) => {
           connection.release();
 
           if (selectError) {
-            console.error('[ATTENDANCE API] Database select error:', selectError);
             return res.status(500).json({
               success: false,
               message: 'Swipe out recorded but failed to fetch record',
@@ -356,7 +304,6 @@ router.post('/swipe-out', (req, res) => {
       });
     });
   } catch (error) {
-    console.error('[ATTENDANCE API] Unexpected error in POST /swipe-out:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',

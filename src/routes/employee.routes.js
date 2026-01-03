@@ -3,7 +3,6 @@ import employeeController from '../controllers/employee.controller.js';
 
 const router = express.Router();
 
-// Routes - Simple and direct, no complex validation
 router.get('/', employeeController.getEmployees.bind(employeeController));
 router.get('/:id', employeeController.getEmployee.bind(employeeController));
 router.post('/', employeeController.createEmployee.bind(employeeController));

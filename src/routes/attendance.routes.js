@@ -5,7 +5,6 @@ const router = express.Router();
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 
-// POST /swipe-in
 router.post('/swipe-in', async (req, res) => {
   try {
     const emp_id = req.user?.emp_id;
@@ -68,7 +67,6 @@ router.post('/swipe-in', async (req, res) => {
   }
 });
 
-// POST /swipe-out
 router.post('/swipe-out', async (req, res) => {
   try {
     const emp_id = req.user?.emp_id;
@@ -122,7 +120,6 @@ router.post('/swipe-out', async (req, res) => {
   }
 });
 
-// GET /today-status
 router.get('/today-status', async (req, res) => {
   try {
     const emp_id = req.user?.emp_id;

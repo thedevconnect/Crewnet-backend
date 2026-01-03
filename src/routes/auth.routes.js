@@ -4,7 +4,6 @@ import { promisePool } from '../config/db.js';
 
 const router = express.Router();
 
-// POST /register
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -53,8 +52,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// POST /login
-// Login with email OR employee_code and password
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -67,12 +64,6 @@ router.post('/login', async (req, res) => {
     }
 
     const loginIdentifier = email.trim();
-    
-    // Debug logging in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[LOGIN] Attempting login for: ${loginIdentifier}`);
-      console.log(`[LOGIN] Password provided: ${password ? 'Yes (length: ' + password.length + ')' : 'No'}`);
-    }
 
     let users;
     try {
@@ -104,9 +95,6 @@ router.post('/login', async (req, res) => {
     }
 
     if (users.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[LOGIN] ❌ User not found: ${loginIdentifier}`);
-      }
       return res.status(401).json({
         success: false,
         message: 'Invalid email/employee code or password'
@@ -114,17 +102,7 @@ router.post('/login', async (req, res) => {
     }
 
     const storedPassword = users[0].password;
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[LOGIN] User found: ${users[0].email} (ID: ${users[0].id}, Employee Code: ${users[0].employee_code || 'N/A'})`);
-      console.log(`[LOGIN] Stored password length: ${storedPassword ? storedPassword.length : 'null'}`);
-      console.log(`[LOGIN] Provided password length: ${password ? password.length : 'null'}`);
-    }
-
     if (password !== storedPassword) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[LOGIN] ❌ Password mismatch for user: ${loginIdentifier}`);
-        console.log(`[LOGIN] Expected: "${storedPassword}", Got: "${password}"`);
-      }
       return res.status(401).json({
         success: false,
         message: 'Invalid email/employee code or password'
@@ -144,10 +122,6 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[LOGIN] Successful login for user: ${user.email} (ID: ${user.id})`);
-    }
 
     res.json({
       success: true,
@@ -170,7 +144,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /users
 router.get('/users', async (req, res) => {
   try {
     const { page = 1, limit = 100, search = '' } = req.query;
@@ -220,7 +193,6 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// GET /dashboard
 router.get('/dashboard', async (req, res) => {
   try {
     const [users] = await promisePool.execute(

@@ -7,6 +7,7 @@ import employeeRoutes from './routes/employee.routes.js';
 import employeeOnboardingRoutes from './routes/employee-onboarding.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
+import leavesRoutes from './routes/leaves.routes.js';
 import attendanceApi from '../attendanceApi.js';
 import { verifyToken } from './middlewares/auth.middleware.js';
 import errorHandler from './middlewares/errorHandler.js';
@@ -16,7 +17,6 @@ dotenv.config();
 
 const app = express();
 
-// CORS configuration - MUST be FIRST, before helmet
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = process.env.CORS_ORIGIN 
@@ -47,25 +47,20 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// Security middleware - configure to work with CORS
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginEmbedderPolicy: false
 }));
 
-// Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
 
-// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
 app.get('/health', async (req, res) => {
   let dbStatus = 'error';
   try {
@@ -82,17 +77,14 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/employees-onboarding', employeeOnboardingRoutes);
 app.use('/api/attendance', verifyToken, attendanceRoutes);
-app.use('/attendance', attendanceApi); // Attendance API routes (without auth middleware)
+app.use('/api/leaves', leavesRoutes);
+app.use('/attendance', attendanceApi);
 
-// 404 handler
 app.use(notFoundHandler);
-
-// Global error handler
 app.use(errorHandler);
 
 export default app;

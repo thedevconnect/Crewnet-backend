@@ -3,7 +3,6 @@ import employeeOnboardingController from '../controllers/employee-onboarding.con
 
 const router = express.Router();
 
-// Routes - Simple and direct, no complex validation
 router.get('/dropdown-options', employeeOnboardingController.getDropdownOptions.bind(employeeOnboardingController));
 router.get('/', employeeOnboardingController.getEmployees.bind(employeeOnboardingController));
 router.get('/:id', employeeOnboardingController.getEmployee.bind(employeeOnboardingController));
