@@ -80,9 +80,14 @@ app.get('/health', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/employees-onboarding', employeeOnboardingRoutes);
-app.use('/api/attendance', verifyToken, attendanceRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leaves', leavesRoutes);
 app.use('/attendance', attendanceApi);
+
+console.log('✅ Routes registered:');
+console.log('  - /api/attendance/swipe-in (POST)');
+console.log('  - /api/attendance/swipe-out (POST)');
+console.log('  - /api/attendance/today/:employeeId (GET)');
 
 app.use(notFoundHandler);
 app.use(errorHandler);
