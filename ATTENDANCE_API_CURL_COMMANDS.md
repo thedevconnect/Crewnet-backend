@@ -34,7 +34,7 @@ curl -X POST http://localhost:3000/api/attendance/swipe-in \
 ```json
 {
   "success": false,
-  "error": "Already swiped in"
+  "error": "Already swiped in. Please swipe out first."
 }
 ```
 
@@ -94,27 +94,75 @@ curl -X POST http://localhost:3000/api/attendance/swipe-out \
 curl -X GET http://localhost:3000/api/attendance/today/1
 ```
 
-### Response (Swiped In):
-```json
-{
-  "success": true,
-  "status": "IN",
-  "swipe_in_time": "2024-01-15T09:30:00.000Z",
-  "swipe_out_time": null,
-  "employee_id": 1,
-  "id": 1
-}
-```
-
-### Response (Swiped Out):
+### Response (With Records):
 ```json
 {
   "success": true,
   "status": "OUT",
-  "swipe_in_time": "2024-01-15T09:30:00.000Z",
-  "swipe_out_time": "2024-01-15T18:00:00.000Z",
-  "employee_id": 1,
-  "id": 1
+  "records": [
+    {
+      "id": 1,
+      "employee_id": 123,
+      "swipe_in_time": "2024-01-15T09:30:00.000Z",
+      "swipe_out_time": "2024-01-15T12:00:00.000Z",
+      "status": "OUT",
+      "duration": "2h 30m",
+      "created_at": "2024-01-15T09:30:00.000Z"
+    },
+    {
+      "id": 2,
+      "employee_id": 123,
+      "swipe_in_time": "2024-01-15T13:00:00.000Z",
+      "swipe_out_time": "2024-01-15T18:00:00.000Z",
+      "status": "OUT",
+      "duration": "5h 0m",
+      "created_at": "2024-01-15T13:00:00.000Z"
+    }
+  ],
+  "total_records": 2,
+  "total_time": {
+    "hours": 7,
+    "minutes": 30,
+    "formatted": "7h 30m"
+  },
+  "last_swipe_in": "2024-01-15T13:00:00.000Z",
+  "last_swipe_out": "2024-01-15T18:00:00.000Z"
+}
+```
+
+### Response (Currently Swiped In):
+```json
+{
+  "success": true,
+  "status": "IN",
+  "records": [
+    {
+      "id": 1,
+      "employee_id": 123,
+      "swipe_in_time": "2024-01-15T09:30:00.000Z",
+      "swipe_out_time": "2024-01-15T12:00:00.000Z",
+      "status": "OUT",
+      "duration": "2h 30m",
+      "created_at": "2024-01-15T09:30:00.000Z"
+    },
+    {
+      "id": 2,
+      "employee_id": 123,
+      "swipe_in_time": "2024-01-15T13:00:00.000Z",
+      "swipe_out_time": null,
+      "status": "IN",
+      "duration": null,
+      "created_at": "2024-01-15T13:00:00.000Z"
+    }
+  ],
+  "total_records": 2,
+  "total_time": {
+    "hours": 2,
+    "minutes": 30,
+    "formatted": "2h 30m"
+  },
+  "last_swipe_in": "2024-01-15T13:00:00.000Z",
+  "last_swipe_out": null
 }
 ```
 
@@ -122,7 +170,13 @@ curl -X GET http://localhost:3000/api/attendance/today/1
 ```json
 {
   "success": true,
-  "status": "NOT_SWIPED"
+  "status": "NOT_SWIPED",
+  "records": [],
+  "total_time": {
+    "hours": 0,
+    "minutes": 0,
+    "formatted": "0h 0m"
+  }
 }
 ```
 
@@ -130,11 +184,13 @@ curl -X GET http://localhost:3000/api/attendance/today/1
 
 ## Business Rules Implemented:
 
-1. ✅ **One swipe in per day** - If employee already swiped in (status='IN' with no swipe_out_time), returns error
-2. ✅ **Must swipe in before swipe out** - Checks for existing record with status='IN' before allowing swipe out
-3. ✅ **Duration calculation** - Automatically calculates duration on swipe out (format: "Xh Ym")
-4. ✅ **Current date tracking** - Uses today's date for attendance_date
-5. ✅ **Employee validation** - Validates employeeId exists before processing
+1. ✅ **Multiple swipe in/out allowed** - Employee can swipe in/out multiple times per day
+2. ✅ **Must swipe in before swipe out** - Checks for latest IN record without swipe_out_time before allowing swipe out
+3. ✅ **Duration calculation** - Automatically calculates duration for each swipe in/out pair (format: "Xh Ym")
+4. ✅ **Total time calculation** - Calculates total time spent (sum of all swipe in/out durations)
+5. ✅ **Current date tracking** - Uses today's date for attendance_date
+6. ✅ **Employee validation** - Validates employeeId exists before processing
+7. ✅ **All records tracking** - GET API returns all swipe in/out records for the day
 
 ---
 
@@ -178,8 +234,19 @@ CREATE TABLE attendance (
   status ENUM('IN', 'OUT') DEFAULT 'IN',
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_emp_date (emp_id, attendance_date)
+  INDEX idx_emp_id (emp_id),
+  INDEX idx_attendance_date (attendance_date),
+  INDEX idx_status (status)
 );
+```
+
+**Note:** UNIQUE constraint on (emp_id, attendance_date) has been removed to allow multiple swipe in/out records per day.
+
+### Migration Script:
+
+Run `ATTENDANCE_MULTIPLE_SWIPES_MIGRATION.sql` to remove the UNIQUE constraint:
+```sql
+ALTER TABLE attendance DROP INDEX IF EXISTS unique_emp_date;
 ```
 
 ---
@@ -242,6 +309,9 @@ CREATE TABLE attendance (
 
 - All times are in UTC format
 - Duration is calculated in hours and minutes (e.g., "8h 30m")
-- One attendance record per employee per day (UNIQUE constraint)
+- **Multiple swipe in/out allowed** - Each swipe creates/updates a separate record
+- Total time is sum of all completed swipe in/out pairs
 - Status automatically updates: 'IN' on swipe-in, 'OUT' on swipe-out
+- GET API returns all records for the day with total time calculation
+- Records are sorted by swipe_in_time (oldest first)
 
