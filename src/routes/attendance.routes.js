@@ -3,97 +3,61 @@ import { promisePool } from '../config/db.js';
 
 const router = express.Router();
 
-console.log('📝 Attendance routes module loaded');
-
+// Helper: Get today's date in YYYY-MM-DD format
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 
+// Helper: Calculate duration between swipe in and swipe out
 const calculateDuration = (swipeInTime, swipeOutTime) => {
-  if (!swipeInTime || !swipeOutTime) return null;
   const diff = new Date(swipeOutTime) - new Date(swipeInTime);
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   return `${hours}h ${minutes}m`;
 };
 
-const calculateTotalTime = (records) => {
-  let totalMilliseconds = 0;
-  records.forEach(record => {
-    if (record.swipe_in_time && record.swipe_out_time) {
-      totalMilliseconds += new Date(record.swipe_out_time) - new Date(record.swipe_in_time);
+// Helper: Get employee ID from request body or authenticated user token
+const getEmployeeId = async (req) => {
+  // First check request body
+  if (req.body.employeeId) {
+    return parseInt(req.body.employeeId, 10);
+  }
+  
+  // If not found, fetch from authenticated user
+  if (req.user?.userId) {
+    const [userRecord] = await promisePool.execute(
+      'SELECT emp_id FROM users WHERE id = ?',
+      [req.user.userId]
+    );
+    if (userRecord.length > 0 && userRecord[0].emp_id) {
+      return parseInt(userRecord[0].emp_id, 10);
     }
-  });
-  const totalHours = Math.floor(totalMilliseconds / (1000 * 60 * 60));
-  const totalMinutes = Math.floor((totalMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
-  return { hours: totalHours, minutes: totalMinutes, formatted: `${totalHours}h ${totalMinutes}m` };
+  }
+  
+  return null;
 };
 
+// SWIPE IN - Insert attendance record directly into database
 router.post('/swipe-in', async (req, res) => {
   try {
-    let employeeId = req.body.employeeId;
-    let employeeIdNum;
-
-    if (!employeeId && req.user?.userId) {
-      const [userRecord] = await promisePool.execute(
-        'SELECT emp_id FROM users WHERE id = ?',
-        [req.user.userId]
-      );
-      if (userRecord.length > 0 && userRecord[0].emp_id) {
-        employeeId = userRecord[0].emp_id;
-        console.log(`[SWIPE-IN] Auto-fetched emp_id ${employeeId} from user ${req.user.userId}`);
-      } else {
-        console.log(`[SWIPE-IN] User ${req.user.userId} has no emp_id linked. Available employee IDs: 2, 4, 6, 7, 8`);
-      }
-    }
-
+    // Get employee ID
+    const employeeId = await getEmployeeId(req);
     if (!employeeId) {
       return res.status(400).json({
         success: false,
-        error: 'employeeId is required. Either provide in request body or ensure your user account is linked to an employee.'
+        error: 'employeeId is required'
       });
     }
 
-    employeeIdNum = parseInt(employeeId, 10);
-    if (isNaN(employeeIdNum)) {
-      return res.status(400).json({
-        success: false,
-        error: 'employeeId must be a valid number'
-      });
-    }
+    // Get today's date
+    const todayDate = getTodayDate();
 
-    console.log(`[SWIPE-IN] Checking employee ${employeeIdNum} exists...`);
-    const [employeeCheck] = await promisePool.execute(
-      'SELECT id FROM employees WHERE id = ?',
-      [employeeIdNum]
-    );
-
-    if (employeeCheck.length === 0) {
-      console.log(`[SWIPE-IN] Employee ${employeeIdNum} not found in employees table`);
-      return res.status(404).json({
-        success: false,
-        error: `Employee not found. Employee ID ${employeeIdNum} does not exist in the system.`
-      });
-    }
-
-    const attendance_date = getTodayDate();
-
-    const [lastRecord] = await promisePool.execute(
-      'SELECT * FROM attendance WHERE emp_id = ? AND attendance_date = ? ORDER BY id DESC LIMIT 1',
-      [employeeIdNum, attendance_date]
-    );
-
-    if (lastRecord.length > 0 && lastRecord[0].status === 'IN' && !lastRecord[0].swipe_out_time) {
-      return res.status(400).json({
-        success: false,
-        error: 'Already swiped in. Please swipe out first.'
-      });
-    }
-
+    // Insert into database
     const [result] = await promisePool.execute(
       `INSERT INTO attendance (emp_id, attendance_date, swipe_in_time, status) 
        VALUES (?, ?, NOW(), 'IN')`,
-      [employeeIdNum, attendance_date]
+      [employeeId, todayDate]
     );
 
+    // Fetch inserted record
     const [newRecord] = await promisePool.execute(
       'SELECT * FROM attendance WHERE id = ?',
       [result.insertId]
@@ -112,28 +76,35 @@ router.post('/swipe-in', async (req, res) => {
 
   } catch (error) {
     console.error('Swipe in error:', error);
+    
+    // Database constraint error (employee doesn't exist)
+    if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.errno === 1452) {
+      return res.status(404).json({
+        success: false,
+        error: 'Employee not found'
+      });
+    }
+    
+    // Duplicate entry error (UNIQUE constraint exists - needs database migration)
+    if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
+      return res.status(400).json({
+        success: false,
+        error: 'Already swiped in today. Database migration required to allow multiple swipe-ins per day.'
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      error: error.message || 'Server error. Please try again later.'
+      error: error.message || 'Server error'
     });
   }
 });
 
+// SWIPE OUT - Update the latest IN record
 router.post('/swipe-out', async (req, res) => {
   try {
-    let employeeId = req.body.employeeId;
-    let employeeIdNum;
-
-    if (!employeeId && req.user?.userId) {
-      const [userRecord] = await promisePool.execute(
-        'SELECT employee_id FROM users WHERE id = ?',
-        [req.user.userId]
-      );
-      if (userRecord.length > 0 && userRecord[0].employee_id) {
-        employeeId = userRecord[0].employee_id;
-      }
-    }
-
+    // Get employee ID
+    const employeeId = await getEmployeeId(req);
     if (!employeeId) {
       return res.status(400).json({
         success: false,
@@ -141,21 +112,18 @@ router.post('/swipe-out', async (req, res) => {
       });
     }
 
-    employeeIdNum = parseInt(employeeId, 10);
-    if (isNaN(employeeIdNum)) {
-      return res.status(400).json({
-        success: false,
-        error: 'employeeId must be a valid number'
-      });
-    }
+    const todayDate = getTodayDate();
 
-    const attendance_date = getTodayDate();
-
+    // Find latest IN record (where swipe_out_time is NULL)
     const [records] = await promisePool.execute(
-      'SELECT * FROM attendance WHERE emp_id = ? AND attendance_date = ? AND status = ? AND swipe_out_time IS NULL ORDER BY id DESC LIMIT 1',
-      [employeeIdNum, attendance_date, 'IN']
+      `SELECT * FROM attendance 
+       WHERE emp_id = ? AND attendance_date = ? 
+       AND status = 'IN' AND swipe_out_time IS NULL 
+       ORDER BY id DESC LIMIT 1`,
+      [employeeId, todayDate]
     );
 
+    // If record not found, return error
     if (records.length === 0) {
       return res.status(400).json({
         success: false,
@@ -165,24 +133,21 @@ router.post('/swipe-out', async (req, res) => {
 
     const record = records[0];
 
-    if (!record.swipe_in_time) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid attendance record'
-      });
-    }
-
+    // Update swipe out time (updatedAt will be updated automatically by ON UPDATE CURRENT_TIMESTAMP)
     await promisePool.execute(
-      `UPDATE attendance SET swipe_out_time = NOW(), status = 'OUT', updatedAt = NOW() 
+      `UPDATE attendance 
+       SET swipe_out_time = NOW(), status = 'OUT' 
        WHERE id = ?`,
       [record.id]
     );
 
+    // Fetch updated record
     const [updatedRecord] = await promisePool.execute(
       'SELECT * FROM attendance WHERE id = ?',
       [record.id]
     );
 
+    // Calculate duration
     const duration = calculateDuration(
       updatedRecord[0].swipe_in_time,
       updatedRecord[0].swipe_out_time
@@ -205,48 +170,48 @@ router.post('/swipe-out', async (req, res) => {
     console.error('Swipe out error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Server error. Please try again later.'
+      error: error.message || 'Server error'
     });
   }
 });
 
+// Helper: Calculate total time from all records
+const calculateTotalTime = (records) => {
+  let totalMilliseconds = 0;
+  records.forEach(record => {
+    if (record.swipe_in_time && record.swipe_out_time) {
+      totalMilliseconds += new Date(record.swipe_out_time) - new Date(record.swipe_in_time);
+    }
+  });
+  const totalHours = Math.floor(totalMilliseconds / (1000 * 60 * 60));
+  const totalMinutes = Math.floor((totalMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
+  return { hours: totalHours, minutes: totalMinutes, formatted: `${totalHours}h ${totalMinutes}m` };
+};
+
+// GET TODAY ATTENDANCE - Handler function (used for both routes)
 const getTodayAttendanceHandler = async (req, res) => {
   try {
-    let employeeId = req.params.employeeId;
-    let employeeIdNum;
-
-    if (!employeeId && req.user?.userId) {
-      const [userRecord] = await promisePool.execute(
-        'SELECT employee_id FROM users WHERE id = ?',
-        [req.user.userId]
-      );
-      if (userRecord.length > 0 && userRecord[0].employee_id) {
-        employeeId = userRecord[0].employee_id;
-      }
-    }
+    // Get employee ID from params or user token
+    let employeeId = req.params.employeeId 
+      ? parseInt(req.params.employeeId, 10)
+      : await getEmployeeId(req);
 
     if (!employeeId) {
       return res.status(400).json({
         success: false,
-        error: 'Valid Employee ID is required'
+        error: 'Employee ID is required'
       });
     }
 
-    employeeIdNum = parseInt(employeeId, 10);
-    if (isNaN(employeeIdNum)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Valid Employee ID is required'
-      });
-    }
+    const todayDate = getTodayDate();
 
-    const attendance_date = getTodayDate();
-
+    // Fetch all records for today
     const [records] = await promisePool.execute(
       'SELECT * FROM attendance WHERE emp_id = ? AND attendance_date = ? ORDER BY swipe_in_time ASC',
-      [employeeId, attendance_date]
+      [employeeId, todayDate]
     );
 
+    // If no records found
     if (records.length === 0) {
       return res.status(200).json({
         success: true,
@@ -256,10 +221,14 @@ const getTodayAttendanceHandler = async (req, res) => {
       });
     }
 
+    // Calculate total time
     const totalTime = calculateTotalTime(records);
+    
+    // Get current status from last record
     const lastRecord = records[records.length - 1];
     const currentStatus = lastRecord.status === 'IN' && !lastRecord.swipe_out_time ? 'IN' : 'OUT';
 
+    // Format records (add duration)
     const formattedRecords = records.map(record => ({
       id: record.id,
       employee_id: record.emp_id,
@@ -268,8 +237,7 @@ const getTodayAttendanceHandler = async (req, res) => {
       status: record.status,
       duration: record.swipe_in_time && record.swipe_out_time 
         ? calculateDuration(record.swipe_in_time, record.swipe_out_time) 
-        : null,
-      created_at: record.createdAt || record.created_at
+        : null
     }));
 
     res.status(200).json({
@@ -283,15 +251,17 @@ const getTodayAttendanceHandler = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get today status error:', error);
+    console.error('Get today attendance error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Server error. Please try again later.'
+      error: error.message || 'Server error'
     });
   }
 };
 
+// Two routes: with parameter and without parameter
 router.get('/today', getTodayAttendanceHandler);
 router.get('/today/:employeeId', getTodayAttendanceHandler);
 
 export default router;
+
