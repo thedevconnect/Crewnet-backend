@@ -8,6 +8,7 @@ import employeeOnboardingRoutes from './routes/employee-onboarding.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import leavesRoutes from './routes/leaves.routes.js';
+import holidayRoutes from './routes/holiday.routes.js';
 import { verifyToken } from './middlewares/auth.middleware.js';
 import errorHandler from './middlewares/errorHandler.js';
 import notFoundHandler from './middlewares/notFoundHandler.js';
@@ -81,11 +82,13 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/employees-onboarding', employeeOnboardingRoutes);
 app.use('/api/attendance', verifyToken, attendanceRoutes);
 app.use('/api/leaves', leavesRoutes);
+app.use('/api/holidays', holidayRoutes);
 
 console.log('✅ Routes registered:');
 console.log('  - /api/attendance/swipe-in (POST)');
 console.log('  - /api/attendance/swipe-out (POST)');
 console.log('  - /api/attendance/today/:employeeId (GET)');
+console.log('  - /api/holidays (GET)');
 
 app.use(notFoundHandler);
 app.use(errorHandler);
