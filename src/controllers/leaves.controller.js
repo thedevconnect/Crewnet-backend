@@ -1,4 +1,5 @@
 import leavesService from '../services/leaves.service.js';
+import ApiError from '../utils/ApiError.js';
 
 class LeavesController {
   async getAllLeaves(req, res) {
@@ -10,7 +11,9 @@ class LeavesController {
       });
     } catch (error) {
       console.error('Get all leaves error:', error);
-      res.status(500).json({
+      // Use ApiError statusCode if available, otherwise default to 500
+      const statusCode = error instanceof ApiError ? error.statusCode : 500;
+      res.status(statusCode).json({
         success: false,
         error: error.message
       });
@@ -25,7 +28,8 @@ class LeavesController {
         data: leave
       });
     } catch (error) {
-      const statusCode = error.message.includes('not found') ? 404 : 500;
+      // Use ApiError statusCode if available, otherwise check message
+      const statusCode = error instanceof ApiError ? error.statusCode : (error.message.includes('not found') ? 404 : 500);
       res.status(statusCode).json({
         success: false,
         error: error.message
@@ -41,7 +45,8 @@ class LeavesController {
         data: leave
       });
     } catch (error) {
-      const statusCode = error.message.includes('Missing required fields') ? 400 : 500;
+      // Use ApiError statusCode if available, otherwise check message
+      const statusCode = error instanceof ApiError ? error.statusCode : (error.message.includes('Missing required fields') ? 400 : 500);
       res.status(statusCode).json({
         success: false,
         error: error.message
@@ -57,7 +62,8 @@ class LeavesController {
         data: leave
       });
     } catch (error) {
-      const statusCode = error.message.includes('not found') ? 404 : 500;
+      // Use ApiError statusCode if available, otherwise check message
+      const statusCode = error instanceof ApiError ? error.statusCode : (error.message.includes('not found') ? 404 : 500);
       res.status(statusCode).json({
         success: false,
         error: error.message
@@ -73,7 +79,8 @@ class LeavesController {
         data: result
       });
     } catch (error) {
-      const statusCode = error.message.includes('not found') ? 404 : 500;
+      // Use ApiError statusCode if available, otherwise check message
+      const statusCode = error instanceof ApiError ? error.statusCode : (error.message.includes('not found') ? 404 : 500);
       res.status(statusCode).json({
         success: false,
         error: error.message

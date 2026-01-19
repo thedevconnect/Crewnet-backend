@@ -1,7 +1,22 @@
+import BaseService from './base.service.js';
 import EmployeeOnboardingModel from '../models/employee-onboarding.model.js';
 import ApiError from '../utils/ApiError.js';
 
-class EmployeeOnboardingService {
+/**
+ * Employee Onboarding Service - Extends BaseService for employee onboarding operations
+ * 
+ * This service extends the generic BaseService but keeps complex entity-specific logic:
+ * - Dropdown options
+ * - Employee code generation
+ * - User creation in users table
+ * - Complex validation (age, date of birth, etc.)
+ * - Data normalization (camelCase/snake_case support)
+ */
+class EmployeeOnboardingService extends BaseService {
+  constructor() {
+    // Initialize base service with table name and primary key
+    super('employees', 'id');
+  }
   // Get dropdown options
   getDropdownOptions() {
     return {
@@ -51,7 +66,8 @@ class EmployeeOnboardingService {
 
   async getEmployeeById(id) {
     try {
-      const employee = await EmployeeOnboardingModel.findById(id);
+      // Use base service findById
+      const employee = await this.findById(id);
       if (!employee) throw new ApiError(404, 'Employee not found', true, '', 'EMPLOYEE_NOT_FOUND');
       return employee;
     } catch (error) {
@@ -386,11 +402,9 @@ class EmployeeOnboardingService {
 
   async deleteEmployee(id) {
     try {
-      const existingEmployee = await EmployeeOnboardingModel.findById(id);
-      if (!existingEmployee) throw new ApiError(404, 'Employee not found', true, '', 'EMPLOYEE_NOT_FOUND');
-
-      const deleted = await EmployeeOnboardingModel.delete(id);
-      if (!deleted) throw new ApiError(500, 'Failed to delete employee');
+      // Use base service deleteById (it already checks if record exists)
+      const result = await this.deleteById(id);
+      // Transform message to match existing API format
       return { message: 'Employee deleted successfully' };
     } catch (error) {
       if (error instanceof ApiError) throw error;
