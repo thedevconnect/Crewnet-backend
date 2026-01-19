@@ -8,6 +8,8 @@ import employeeOnboardingRoutes from './routes/employee-onboarding.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import leavesRoutes from './routes/leaves.routes.js';
+import calendarRoutes from './routes/calendar.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import { verifyToken } from './middlewares/auth.middleware.js';
 import errorHandler from './middlewares/errorHandler.js';
 import notFoundHandler from './middlewares/notFoundHandler.js';
@@ -81,11 +83,17 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/employees-onboarding', employeeOnboardingRoutes);
 app.use('/api/attendance', verifyToken, attendanceRoutes);
 app.use('/api/leaves', leavesRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 console.log('✅ Routes registered:');
 console.log('  - /api/attendance/swipe-in (POST)');
 console.log('  - /api/attendance/swipe-out (POST)');
 console.log('  - /api/attendance/today/:employeeId (GET)');
+console.log('  - /api/calendar?employeeId={id}&month={YYYY-MM} (GET)');
+console.log('  - /api/dashboard (GET) - Comprehensive dashboard data');
+console.log('  - /api/dashboard/day-wise (GET) - Day-wise statistics');
+console.log('  - /api/dashboard/monthly (GET) - Monthly statistics');
 
 app.use(notFoundHandler);
 app.use(errorHandler);

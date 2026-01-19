@@ -20,7 +20,7 @@ const getEmployeeId = async (req) => {
   if (req.body.employeeId) {
     return parseInt(req.body.employeeId, 10);
   }
-  
+
   // If not found, fetch from authenticated user
   if (req.user?.userId) {
     const [userRecord] = await promisePool.execute(
@@ -31,7 +31,7 @@ const getEmployeeId = async (req) => {
       return parseInt(userRecord[0].emp_id, 10);
     }
   }
-  
+
   return null;
 };
 
@@ -49,6 +49,10 @@ router.post('/swipe-in', async (req, res) => {
 
     // Get today's date
     const todayDate = getTodayDate();
+
+    // Get location from request body (optional)
+    // Note: swipe_in_location column may not exist - run attendance_location_migration.sql to add it
+    const location = req.body.location || null;
 
     // Insert into database
     const [result] = await promisePool.execute(
@@ -70,13 +74,14 @@ router.post('/swipe-in', async (req, res) => {
         id: newRecord[0].id,
         employee_id: newRecord[0].emp_id,
         swipe_in_time: newRecord[0].swipe_in_time,
+        swipe_in_location: newRecord[0].swipe_in_location || null,
         status: newRecord[0].status
       }
     });
 
   } catch (error) {
     console.error('Swipe in error:', error);
-    
+
     // Database constraint error (employee doesn't exist)
     if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.errno === 1452) {
       return res.status(404).json({
@@ -84,7 +89,7 @@ router.post('/swipe-in', async (req, res) => {
         error: 'Employee not found'
       });
     }
-    
+
     // Duplicate entry error (UNIQUE constraint exists - needs database migration)
     if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
       return res.status(400).json({
@@ -92,7 +97,7 @@ router.post('/swipe-in', async (req, res) => {
         error: 'Already swiped in today. Database migration required to allow multiple swipe-ins per day.'
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: error.message || 'Server error'
@@ -133,7 +138,11 @@ router.post('/swipe-out', async (req, res) => {
 
     const record = records[0];
 
-    // Update swipe out time (updatedAt will be updated automatically by ON UPDATE CURRENT_TIMESTAMP)
+    // Get location from request body (optional)
+    const location = req.body.location || null;
+
+    // Update swipe out time and status (updatedAt will be updated automatically by ON UPDATE CURRENT_TIMESTAMP)
+    // Note: swipe_out_location column may not exist - run attendance_location_migration.sql to add it
     await promisePool.execute(
       `UPDATE attendance 
        SET swipe_out_time = NOW(), status = 'OUT' 
@@ -160,7 +169,9 @@ router.post('/swipe-out', async (req, res) => {
         id: updatedRecord[0].id,
         employee_id: updatedRecord[0].emp_id,
         swipe_in_time: updatedRecord[0].swipe_in_time,
+        swipe_in_location: updatedRecord[0].swipe_in_location || null,
         swipe_out_time: updatedRecord[0].swipe_out_time,
+        swipe_out_location: updatedRecord[0].swipe_out_location || null,
         duration: duration,
         status: updatedRecord[0].status
       }
@@ -192,7 +203,7 @@ const calculateTotalTime = (records) => {
 const getTodayAttendanceHandler = async (req, res) => {
   try {
     // Get employee ID from params or user token
-    let employeeId = req.params.employeeId 
+    let employeeId = req.params.employeeId
       ? parseInt(req.params.employeeId, 10)
       : await getEmployeeId(req);
 
@@ -223,7 +234,7 @@ const getTodayAttendanceHandler = async (req, res) => {
 
     // Calculate total time
     const totalTime = calculateTotalTime(records);
-    
+
     // Get current status from last record
     const lastRecord = records[records.length - 1];
     const currentStatus = lastRecord.status === 'IN' && !lastRecord.swipe_out_time ? 'IN' : 'OUT';
@@ -233,10 +244,12 @@ const getTodayAttendanceHandler = async (req, res) => {
       id: record.id,
       employee_id: record.emp_id,
       swipe_in_time: record.swipe_in_time,
+      swipe_in_location: record.swipe_in_location || null,
       swipe_out_time: record.swipe_out_time,
+      swipe_out_location: record.swipe_out_location || null,
       status: record.status,
-      duration: record.swipe_in_time && record.swipe_out_time 
-        ? calculateDuration(record.swipe_in_time, record.swipe_out_time) 
+      duration: record.swipe_in_time && record.swipe_out_time
+        ? calculateDuration(record.swipe_in_time, record.swipe_out_time)
         : null
     }));
 
@@ -262,6 +275,188 @@ const getTodayAttendanceHandler = async (req, res) => {
 // Two routes: with parameter and without parameter
 router.get('/today', getTodayAttendanceHandler);
 router.get('/today/:employeeId', getTodayAttendanceHandler);
+
+// GET ATTENDANCE BY DATE - Get attendance records for a specific date
+router.get('/date/:date', async (req, res) => {
+  try {
+    const { date } = req.params;
+    const employeeId = req.query.employeeId
+      ? parseInt(req.query.employeeId, 10)
+      : await getEmployeeId(req);
+
+    if (!employeeId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Employee ID is required (provide in query parameter or authenticate)'
+      });
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid date format. Use YYYY-MM-DD format'
+      });
+    }
+
+    // Fetch all records for the specified date
+    const [records] = await promisePool.execute(
+      `SELECT * FROM attendance 
+       WHERE emp_id = ? AND attendance_date = ? 
+       ORDER BY swipe_in_time ASC`,
+      [employeeId, date]
+    );
+
+    // If no records found
+    if (records.length === 0) {
+      return res.status(200).json({
+        success: true,
+        date: date,
+        status: 'NO_RECORDS',
+        records: [],
+        total_time: { hours: 0, minutes: 0, formatted: '0h 0m' },
+        message: 'No attendance records found for this date'
+      });
+    }
+
+    // Calculate total time
+    const totalTime = calculateTotalTime(records);
+
+    // Get current status from last record
+    const lastRecord = records[records.length - 1];
+    const currentStatus = lastRecord.status === 'IN' && !lastRecord.swipe_out_time ? 'IN' : 'OUT';
+
+    // Format records (add duration and location)
+    const formattedRecords = records.map(record => ({
+      id: record.id,
+      employee_id: record.emp_id,
+      attendance_date: record.attendance_date,
+      swipe_in_time: record.swipe_in_time,
+      swipe_in_location: record.swipe_in_location || null,
+      swipe_out_time: record.swipe_out_time,
+      swipe_out_location: record.swipe_out_location || null,
+      status: record.status,
+      duration: record.swipe_in_time && record.swipe_out_time
+        ? calculateDuration(record.swipe_in_time, record.swipe_out_time)
+        : null
+    }));
+
+    res.status(200).json({
+      success: true,
+      date: date,
+      status: currentStatus,
+      records: formattedRecords,
+      total_records: records.length,
+      total_time: totalTime,
+      summary: {
+        first_swipe_in: records[0].swipe_in_time,
+        first_swipe_in_location: records[0].swipe_in_location || null,
+        last_swipe_out: lastRecord.swipe_out_time || null,
+        last_swipe_out_location: lastRecord.swipe_out_location || null,
+        total_hours_in_office: totalTime.formatted
+      }
+    });
+
+  } catch (error) {
+    console.error('Get attendance by date error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error'
+    });
+  }
+});
+
+// GET ATTENDANCE BY DATE WITH EMPLOYEE ID IN PATH
+router.get('/date/:date/:employeeId', async (req, res) => {
+  try {
+    const { date, employeeId: empIdParam } = req.params;
+    const employeeId = parseInt(empIdParam, 10);
+
+    if (!employeeId || isNaN(employeeId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid employee ID'
+      });
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid date format. Use YYYY-MM-DD format'
+      });
+    }
+
+    // Fetch all records for the specified date
+    const [records] = await promisePool.execute(
+      `SELECT * FROM attendance 
+       WHERE emp_id = ? AND attendance_date = ? 
+       ORDER BY swipe_in_time ASC`,
+      [employeeId, date]
+    );
+
+    // If no records found
+    if (records.length === 0) {
+      return res.status(200).json({
+        success: true,
+        date: date,
+        employee_id: employeeId,
+        status: 'NO_RECORDS',
+        records: [],
+        total_time: { hours: 0, minutes: 0, formatted: '0h 0m' },
+        message: 'No attendance records found for this date'
+      });
+    }
+
+    // Calculate total time
+    const totalTime = calculateTotalTime(records);
+
+    // Get current status from last record
+    const lastRecord = records[records.length - 1];
+    const currentStatus = lastRecord.status === 'IN' && !lastRecord.swipe_out_time ? 'IN' : 'OUT';
+
+    // Format records (add duration and location)
+    const formattedRecords = records.map(record => ({
+      id: record.id,
+      employee_id: record.emp_id,
+      attendance_date: record.attendance_date,
+      swipe_in_time: record.swipe_in_time,
+      swipe_in_location: record.swipe_in_location || null,
+      swipe_out_time: record.swipe_out_time,
+      swipe_out_location: record.swipe_out_location || null,
+      status: record.status,
+      duration: record.swipe_in_time && record.swipe_out_time
+        ? calculateDuration(record.swipe_in_time, record.swipe_out_time)
+        : null
+    }));
+
+    res.status(200).json({
+      success: true,
+      date: date,
+      employee_id: employeeId,
+      status: currentStatus,
+      records: formattedRecords,
+      total_records: records.length,
+      total_time: totalTime,
+      summary: {
+        first_swipe_in: records[0].swipe_in_time,
+        first_swipe_in_location: records[0].swipe_in_location || null,
+        last_swipe_out: lastRecord.swipe_out_time || null,
+        last_swipe_out_location: lastRecord.swipe_out_location || null,
+        total_hours_in_office: totalTime.formatted
+      }
+    });
+
+  } catch (error) {
+    console.error('Get attendance by date error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error'
+    });
+  }
+});
 
 export default router;
 
