@@ -1,4 +1,5 @@
 import db from '../config/db.js';
+import rbacFrontendService from './rbac-frontend.service.js';
 
 class AuthLoginService {
   async login(email, password) {
@@ -30,18 +31,9 @@ class AuthLoginService {
 
     console.log('✅ Login successful for email:', email);
 
-    const allRoles = await this._getAllRoles();
-    console.log('📋 Roles fetched:', allRoles.length);
-
-    const rolesWithMenus = await Promise.all(
-      allRoles.map(async (role) => {
-        const menus = await this._getMenusForRole(role.roleCode);
-        return {
-          ...role,
-          menus: menus
-        };
-      })
-    );
+    // Get roles mapped to this user and their menus in Angular-friendly format
+    const rolesWithMenus = await this._getUserRolesWithMenus(user.id);
+    console.log('📋 User roles with menus prepared:', rolesWithMenus.length);
 
     return {
       success: true,
@@ -54,91 +46,145 @@ class AuthLoginService {
     };
   }
 
-  async _getAllRoles() {
+  /**
+   * Get roles assigned to the user + menus for each role
+   * Uses `user_roles` mapping table and `rbacFrontendService` for Angular MenuItem format
+   */
+  async _getUserRolesWithMenus(userId) {
     try {
-      console.log('📋 Fetching all roles from database...');
-      
-      const [roles] = await db.execute('SELECT * FROM roles ORDER BY roleId ASC');
-      console.log('📋 Roles query result:', roles.length, 'roles found');
+      console.log('📋 Fetching roles for user from database...', { userId });
 
-      if (roles.length === 0) {
-        console.log('⚠️ No roles found in database. Table might be empty.');
-        return [];
+      const sql = `
+        SELECT 
+          r.id,
+          r.role_name,
+          r.role_code,
+          r.description,
+          r.is_superadmin,
+          r.status,
+          r.is_active
+        FROM user_roles ur
+        INNER JOIN roles r ON ur.roleId = r.id
+        WHERE ur.userId = ?
+          AND (r.status = 'Active' OR r.is_active = 1)
+        ORDER BY r.id ASC
+      `;
+
+      const [rows] = await db.execute(sql, [userId]);
+      console.log('📋 User roles query result:', rows.length, 'roles found for user');
+
+      if (rows.length === 0) {
+        console.log('⚠️ No roles mapped for user. Falling back to all active roles.');
+        return await this._getAllActiveRolesWithMenus();
       }
 
-      const formattedRoles = roles.map(role => ({
-        id: role.roleId,
-        roleName: role.roleName,
-        roleCode: role.roleCode,
-        description: role.roleDesc || '',
-        status: role.status || 'Active'
-      }));
+      const rolesWithMenus = [];
 
-      console.log('✅ Roles formatted:', formattedRoles.length);
-      return formattedRoles;
+      for (const role of rows) {
+        const roleCode = role.role_code || role.roleCode;
+        if (!roleCode) {
+          console.warn('⚠️ Role without role_code found, skipping', role);
+          continue;
+        }
+
+        let menus = [];
+        try {
+          // Fetch menus for this role in Angular MenuItem format
+          menus = await rbacFrontendService.getMenusForFrontend(roleCode);
+        } catch (e) {
+          console.error(`❌ Failed to fetch menus for frontend for role ${roleCode}, using fallback menus.`, e.message || e);
+          menus = rbacFrontendService.getFallbackMenus(roleCode);
+        }
+
+        rolesWithMenus.push({
+          id: role.id,
+          roleName: role.role_name || role.roleName,
+          roleCode,
+          description: role.description || '',
+          isSuperAdmin: role.is_superadmin || 0,
+          menus
+        });
+      }
+
+      return rolesWithMenus;
     } catch (error) {
-      console.error('❌ Error fetching roles:', error.message);
+      console.error('❌ Error fetching user roles with menus:', error.message);
+
+      // If user_roles table is missing or any other error, still try to return active roles + menus
+      if (error.message && error.message.includes("user_roles")) {
+        console.log('⚠️ user_roles table missing, falling back to all active roles with menus.');
+        return await this._getAllActiveRolesWithMenus();
+      }
+
       return [];
     }
   }
 
-  async _getMenusForRole(roleCode) {
-    try {
-      const [roles] = await db.execute(
-        'SELECT * FROM roles WHERE roleCode = ? AND status = "Active" LIMIT 1',
-        [roleCode]
-      );
+  /**
+   * Fallback: get all active roles and their menus (for environments
+   * where user_roles mapping is not yet configured)
+   */
+  async _getAllActiveRolesWithMenus() {
+    const fallbackSql = `
+      SELECT *
+      FROM roles
+      WHERE status = 'Active'
+    `;
 
-      if (roles.length === 0) {
-        return [];
+    const [allRoles] = await db.execute(fallbackSql);
+    console.log('📋 Fallback roles query result:', allRoles.length, 'active roles found');
+
+    const rolesWithMenus = [];
+
+    for (const role of allRoles) {
+      const id =
+        role.id ??
+        role.roleId ??
+        role.role_id;
+
+      const roleName =
+        role.role_name ??
+        role.roleName ??
+        role.ROLE_NAME ??
+        null;
+
+      const roleCode =
+        role.role_code ??
+        role.roleCode ??
+        role.ROLE_CODE ??
+        null;
+
+      if (!roleCode) {
+        console.warn('⚠️ Role without role_code found in fallback, skipping', role);
+        continue;
       }
 
-      const roleId = roles[0].roleId || roles[0].id || roles[0].role_id;
-
+      let menus = [];
       try {
-        const [menus] = await db.execute(
-          `SELECT DISTINCT m.*
-          FROM menus m
-          INNER JOIN role_menu_mapping rmm ON (m.menuId = rmm.menuId OR m.id = rmm.menu_id)
-          WHERE (rmm.roleId = ? OR rmm.role_id = ?) 
-          AND (m.status = 'Active' OR m.is_active = 1)
-          ORDER BY m.displayOrder ASC, m.display_order ASC, m.menuId ASC, m.id ASC
-          LIMIT 50`,
-          [roleId, roleId]
-        );
-
-        if (menus.length === 0) {
-          return [];
-        }
-
-        return menus.map(menu => {
-          const menuId = menu.menuId || menu.id || menu.menu_id;
-          const menuName = menu.menuName || menu.menu_name || menu.MENU_NAME;
-          const menuCode = menu.menuCode || menu.menu_code || menu.MENU_CODE;
-          const menuIcon = menu.menuIcon || menu.menu_icon || menu.icon || '';
-          const menuPath = menu.menuPath || menu.menu_path || menu.menu_url || '';
-          const displayOrder = menu.displayOrder || menu.display_order || 0;
-
-          return {
-            id: menuId,
-            menuName: menuName,
-            menuCode: menuCode,
-            menuIcon: menuIcon,
-            menuPath: menuPath,
-            displayOrder: displayOrder
-          };
-        });
-      } catch (mappingError) {
-        if (mappingError.message.includes("doesn't exist")) {
-          console.log(`⚠️ role_menu_mapping table doesn't exist. Returning empty menus for ${roleCode}`);
-          return [];
-        }
-        throw mappingError;
+        // Try dynamic menus from database
+        menus = await rbacFrontendService.getMenusForFrontend(roleCode);
+      } catch (e) {
+        console.error(`❌ Failed to fetch menus for frontend for role ${roleCode}, using fallback menus.`, e.message || e);
+        // Fallback to hardcoded menus (same structure as Angular MenuItem[])
+        menus = rbacFrontendService.getFallbackMenus(roleCode);
       }
-    } catch (error) {
-      console.error(`❌ Error fetching menus for role ${roleCode}:`, error.message);
-      return [];
+
+      rolesWithMenus.push({
+        id,
+        roleName,
+        roleCode,
+        description:
+          role.description ??
+          role.roleDesc ??
+          role.role_desc ??
+          role.DESCRIPTION ??
+          '',
+        isSuperAdmin: role.is_superadmin || role.isSuperAdmin || 0,
+        menus
+      });
     }
+
+    return rolesWithMenus;
   }
 }
 
