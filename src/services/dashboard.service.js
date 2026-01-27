@@ -343,18 +343,21 @@ class DashboardService {
   async _getHolidayStats(year, month) {
     try {
       const [rows] = await promisePool.execute(
-        `SELECT 
-          holiday_date,
-          holiday_name,
-          holiday_type
-         FROM holidays
+        `SELECT * FROM holidays
          WHERE YEAR(holiday_date) = ? AND MONTH(holiday_date) = ?
          ORDER BY holiday_date ASC`,
         [year, month]
       );
+      
+      const holidays = rows.map(row => ({
+        holiday_date: row.holiday_date || row.holidayDate || row.holidayDate,
+        holiday_name: row.holiday_name || row.holidayName || row.holidayName,
+        holiday_type: row.holiday_type || row.holidayType || null
+      }));
+      
       return {
-        total: rows?.length || 0,
-        holidays: rows || []
+        total: holidays.length,
+        holidays: holidays
       };
     } catch (error) {
       if (error.code === 'ER_NO_SUCH_TABLE') {

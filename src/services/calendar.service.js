@@ -211,32 +211,19 @@ class CalendarService {
    */
   async _getHolidays(year, month) {
     try {
-      // Query holidays table - handle gracefully if table doesn't exist
-      // Try to include holiday_type if column exists
-      try {
-        // Try with holiday_type first
-        const [rows] = await promisePool.execute(
-          `SELECT id, holiday_name, holiday_date, holiday_type 
-           FROM holidays 
-           WHERE YEAR(holiday_date) = ? AND MONTH(holiday_date) = ?`,
-          [year, month]
-        );
-        return rows || [];
-      } catch (error) {
-        // If holiday_type column doesn't exist, try without it
-        if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === '42S22') {
-          if (error.sqlMessage && error.sqlMessage.includes('holiday_type')) {
-            const [rows] = await promisePool.execute(
-              `SELECT id, holiday_name, holiday_date 
-               FROM holidays 
-               WHERE YEAR(holiday_date) = ? AND MONTH(holiday_date) = ?`,
-              [year, month]
-            );
-            return rows || [];
-          }
-        }
-        throw error;
-      }
+      const [rows] = await promisePool.execute(
+        `SELECT * FROM holidays 
+         WHERE YEAR(holiday_date) = ? AND MONTH(holiday_date) = ?
+         ORDER BY holiday_date ASC`,
+        [year, month]
+      );
+      
+      return rows.map(row => ({
+        id: row.id || row.holidayId || row.holiday_id,
+        holiday_name: row.holiday_name || row.holidayName || row.holidayName,
+        holiday_date: row.holiday_date || row.holidayDate || row.holidayDate,
+        holiday_type: row.holiday_type || row.holidayType || null
+      }));
     } catch (error) {
       // If table doesn't exist, return empty array (graceful degradation)
       if (error.code === 'ER_NO_SUCH_TABLE' || error.code === '42S02') {
