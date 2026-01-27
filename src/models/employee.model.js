@@ -60,7 +60,7 @@ class EmployeeModel {
 
   static async create(data) {
     const toNull = (val) => (val === undefined || val === null || val === '') ? null : val;
-    
+
     const firstName = toNull(data.firstName || data.first_name || null);
     const lastName = toNull(data.lastName || data.last_name || null);
     const email = toNull(data.email);
@@ -71,7 +71,7 @@ class EmployeeModel {
 
     const sql = `INSERT INTO employees (first_name, last_name, email, mobile_number, department, status, joining_date) 
                  VALUES (?, ?, ?, ?, ?, ?, ?)`;
-    
+
     const params = [firstName, lastName, email, mobileNumber, department, status, joiningDate];
     const [result] = await db.execute(sql, params);
     return this.findById(result.insertId);
@@ -79,7 +79,7 @@ class EmployeeModel {
 
   static async update(id, data) {
     const safeValue = (value) => (value === undefined ? null : value);
-    
+
     const firstName = data.firstName || data.first_name;
     const lastName = data.lastName || data.last_name;
     const email = data.email;
