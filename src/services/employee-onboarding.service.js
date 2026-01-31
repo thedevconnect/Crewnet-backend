@@ -56,6 +56,18 @@ class EmployeeOnboardingService extends BaseService {
     };
   }
 
+  /**
+   * Normalize employment_type to match DB ENUM('Full Time', 'Intern').
+   * Handles frontend variants like 'FullTime', 'Part Time', etc.
+   */
+  normalizeEmploymentType(value) {
+    if (value == null || value === '') return null;
+    const v = String(value).trim();
+    if (/full[\s-]*time/i.test(v) || v === 'FullTime' || v === 'fulltime' || v === 'Full-time' || v === 'full-time') return 'Full Time';
+    if (/^intern$/i.test(v)) return 'Intern';
+    return v; // return as-is for valid values, caller can validate
+  }
+
   async getAllEmployees(query) {
     try {
       return await EmployeeOnboardingModel.findAll(query);
@@ -79,6 +91,13 @@ class EmployeeOnboardingService extends BaseService {
   async createEmployee(data) {
     try {
       // Normalize data - support both camelCase and snake_case
+      const rawEmploymentType = data.employmentType || data.employment_type;
+      const employmentType = this.normalizeEmploymentType(rawEmploymentType) ?? rawEmploymentType;
+      const allowedEmploymentTypes = ['Full Time', 'Intern'];
+      if (!employmentType || !allowedEmploymentTypes.includes(employmentType)) {
+        throw new ApiError(400, `employmentType must be one of: ${allowedEmploymentTypes.join(', ')}. Received: ${rawEmploymentType ?? 'empty'}`, true, '', 'VALIDATION_ERROR');
+      }
+
       const normalizedData = {
         status: data.status || data.Status || 'Active',
         firstName: data.firstName || data.first_name,
@@ -89,7 +108,7 @@ class EmployeeOnboardingService extends BaseService {
         mobileNumber: data.mobileNumber || data.mobile_number,
         department: data.department || data.Department,
         designation: data.designation || data.Designation,
-        employmentType: data.employmentType || data.employment_type,
+        employmentType,
         joiningDate: data.joiningDate || data.joining_date,
         role: data.role || data.Role,
         username: data.username || data.Username,
@@ -250,7 +269,13 @@ class EmployeeOnboardingService extends BaseService {
         normalizedData.designation = trimValue(data.designation || data.Designation);
       }
       if (data.employmentType !== undefined || data.employment_type !== undefined) {
-        normalizedData.employmentType = trimValue(data.employmentType || data.employment_type);
+        const raw = trimValue(data.employmentType || data.employment_type);
+        const normalized = this.normalizeEmploymentType(raw) ?? raw;
+        const allowedEmploymentTypes = ['Full Time', 'Intern'];
+        if (!normalized || !allowedEmploymentTypes.includes(normalized)) {
+          throw new ApiError(400, `employmentType must be one of: ${allowedEmploymentTypes.join(', ')}. Received: ${raw ?? 'empty'}`, true, '', 'VALIDATION_ERROR');
+        }
+        normalizedData.employmentType = normalized;
       }
       if (data.joiningDate !== undefined || data.joining_date !== undefined) {
         normalizedData.joiningDate = data.joiningDate || data.joining_date;

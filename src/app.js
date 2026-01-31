@@ -96,6 +96,7 @@ console.log('  - /api/auth/login (POST)');
 console.log('  - /api/attendance/swipe-in (POST)');
 console.log('  - /api/attendance/swipe-out (POST)');
 console.log('  - /api/attendance/today/:employeeId (GET)');
+console.log('  - /api/attendance/sync-calendar?employeeId=&month=&year= (GET)');
 console.log('  - /api/calendar?employeeId={id}&month={YYYY-MM} (GET)');
 console.log('  - /api/dashboard (GET) - Comprehensive dashboard data');
 console.log('  - /api/dashboard/day-wise (GET) - Day-wise statistics');

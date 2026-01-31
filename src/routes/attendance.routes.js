@@ -1,5 +1,6 @@
 import express from 'express';
 import { promisePool } from '../config/db.js';
+import attendanceSyncCalendarService from '../services/attendance-sync-calendar.service.js';
 
 const router = express.Router();
 
@@ -275,6 +276,43 @@ const getTodayAttendanceHandler = async (req, res) => {
 // Two routes: with parameter and without parameter
 router.get('/today', getTodayAttendanceHandler);
 router.get('/today/:employeeId', getTodayAttendanceHandler);
+
+// GET /api/attendance/sync-calendar?employeeId=&month=&year=
+// Syncs attendance_punch -> employee_attendance_daily and returns monthly calendar data
+router.get('/sync-calendar', async (req, res) => {
+  try {
+    const employeeId = req.query.employeeId
+      ? parseInt(req.query.employeeId, 10)
+      : (req.user?.emp_id ?? req.user?.userId ?? req.user?.id);
+    const month = req.query.month;
+    const year = req.query.year;
+
+    if (!employeeId || isNaN(employeeId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'employeeId is required (query param or from auth token)'
+      });
+    }
+    if (!month || !year) {
+      return res.status(400).json({
+        success: false,
+        error: 'month and year query params are required (e.g. month=1&year=2026)'
+      });
+    }
+
+    const result = await attendanceSyncCalendarService.syncCalendar(employeeId, month, year);
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Sync calendar error:', error);
+    const status = error.statusCode || 500;
+    const message = error.message || 'Failed to sync calendar';
+    res.status(status).json({
+      success: false,
+      error: message
+    });
+  }
+});
 
 // GET ATTENDANCE BY DATE - Get attendance records for a specific date
 router.get('/date/:date', async (req, res) => {

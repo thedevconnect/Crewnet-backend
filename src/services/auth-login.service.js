@@ -1,4 +1,5 @@
 import db from '../config/db.js';
+import jwt from 'jsonwebtoken';
 import rbacFrontendService from './rbac-frontend.service.js';
 
 class AuthLoginService {
@@ -35,6 +36,26 @@ class AuthLoginService {
     const rolesWithMenus = await this._getUserRolesWithMenus(user.id);
     console.log('📋 User roles with menus prepared:', rolesWithMenus.length);
 
+    // Resolve employee id for JWT (for attendance and other emp-scoped APIs)
+    let empId = user.id;
+    try {
+      const [empRows] = await db.execute(
+        'SELECT id FROM employees WHERE email = ? LIMIT 1',
+        [user.email]
+      );
+      if (empRows.length > 0) empId = empRows[0].id;
+    } catch (_) { /* employees table may not exist */ }
+
+    // Issue JWT so frontend can send it in Authorization header for protected routes (e.g. /api/attendance)
+    let token = null;
+    if (process.env.JWT_SECRET) {
+      token = jwt.sign(
+        { userId: user.id, id: user.id, email: user.email, emp_id: empId },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      );
+    }
+
     return {
       success: true,
       message: 'Login successful',
@@ -42,6 +63,7 @@ class AuthLoginService {
         id: user.id,
         email: user.email
       },
+      token,
       roles: rolesWithMenus
     };
   }
